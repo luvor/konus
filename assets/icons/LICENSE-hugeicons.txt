@@ -1,3 +1,5 @@
+Modified Hugeicons SVGs: several path fills and shapes were changed to match the design.
+
 MIT License
 
 Copyright (c) 2025 Hugeicons

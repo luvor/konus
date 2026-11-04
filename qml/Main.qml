@@ -15,7 +15,7 @@ ApplicationWindow {
     property bool libraryOpen: true
     property string section: "Videos"
     function reveal() { showChrome=true; idle.restart(); if (!player.playing) idle.stop() }
-    function fmt(ms) { let s=Math.floor(Math.max(0,ms)/1000); return Math.floor(s/60).toString().padStart(2,"0")+":"+(s%60).toString().padStart(2,"0") }
+    function fmt(ms) { let s=Math.floor(Math.max(0,ms)/1000); return Math.floor(s/3600).toString().padStart(2,"0")+":"+Math.floor(s/60%60).toString().padStart(2,"0")+":"+(s%60).toString().padStart(2,"0") }
     function stepFile(delta) { for(let i=0;i<files.count;i++) if(files.get(i,"fileName")===player.title) {let n=i+delta;if(n>=0&&n<files.count)player.open(files.get(n,"fileURL"));return} }
     Timer { id: idle; interval:2500; onTriggered:if(player.playing)win.showChrome=false }
     Connections { target:player; function onPlayingChanged(){if(player.playing)idle.restart();else win.reveal()} }
@@ -53,14 +53,14 @@ ApplicationWindow {
         RowLayout { Layout.fillWidth:true;Layout.fillHeight:true;spacing:0
             Rectangle { visible:win.showChrome;Layout.fillHeight:true;Layout.preferredWidth:visible?52:0;color:"#1c1c1c"
                 Column { anchors.horizontalCenter:parent.horizontalCenter;anchors.top:parent.top;anchors.topMargin:8;spacing:0
-                    Repeater { model:["Home01","PlaySquare","FolderMusic","Wifi01","Playlist01","Clock01","Add01"];delegate:Item{required property string modelData;required property int index;width:52;height:41;Icon{anchors.centerIn:parent;name:modelData;size:20;tint:section===["Home","Videos","Music","Network","Playlists","Recent"][parent.index]||railMouse.containsMouse?Theme.accent:Theme.muted;hoverTint:Theme.accent}MouseArea{id:railMouse;anchors.fill:parent;hoverEnabled:true;onClicked:if(index===6)picker.open();else{section=["Home","Videos","Music","Network","Playlists","Recent"][index];libraryOpen=true}}} }
+                    Repeater { model:["Home01","PlaySquare","FolderMusic","Broadcast","Playlist01","RecentClock","Add01"];delegate:Item{required property string modelData;required property int index;width:52;height:41;Icon{anchors.centerIn:parent;name:modelData;size:20;tint:section===["Home","Videos","Music","Network","Playlists","Recent"][parent.index]||railMouse.containsMouse?Theme.accent:Theme.muted;hoverTint:Theme.accent}MouseArea{id:railMouse;anchors.fill:parent;hoverEnabled:true;onClicked:if(index===6)picker.open();else{section=["Home","Videos","Music","Network","Playlists","Recent"][index];libraryOpen=true}}} }
                 }
             }
             Rectangle { visible:win.showChrome&&win.libraryOpen;Layout.fillHeight:true;Layout.preferredWidth:visible?Theme.panelWidth:0;color:"#111111"
                 ColumnLayout { anchors.fill:parent;anchors.margins:14;spacing:0
                     RowLayout { Layout.fillWidth:true;Layout.preferredHeight:34;spacing:10
-                        Icon{name:"ArrowLeft01";size:18}
-                        Icon{name:"ArrowRight01";size:18;tint:"#555555"}
+                        Icon{name:"ArrowLeftStem";size:18}
+                        Icon{name:"ArrowRightStem";size:18;tint:"#555555"}
                         Text{text:section;color:"#b7b7b7";font.pixelSize:16}
                         Item{Layout.fillWidth:true}
                         Icon{name:"MoreHorizontal";size:18}
@@ -69,8 +69,8 @@ ApplicationWindow {
                     RowLayout { Layout.fillWidth:true;Layout.preferredHeight:36;spacing:12
                         Text{text:files.count+" items";color:Theme.muted;font.pixelSize:12}
                         Item{Layout.fillWidth:true}
-                        Icon{name:"Sorting01";size:18}
-                        Icon{name:"ListView";size:18}
+                        Icon{name:"SortArrows";size:18}
+                        Icon{name:"ListBullets";size:18}
                         Icon{name:"Search01";size:18}
                     }
                     Rectangle{Layout.fillWidth:true;height:1;color:"#262626"}
@@ -89,7 +89,7 @@ ApplicationWindow {
                 Icon{name:"Previous";size:16;MouseArea{anchors.fill:parent;onClicked:win.stepFile(-1)}}
                 Rectangle{Layout.preferredWidth:56;Layout.preferredHeight:28;color:playMouse.containsMouse?Qt.lighter(Theme.accent,1.15):Theme.accent;radius:4;Icon{anchors.centerIn:parent;name:player.playing?"Pause":"Play";size:16;tint:"#1a1a1a"}MouseArea{id:playMouse;anchors.fill:parent;hoverEnabled:true;onClicked:player.togglePause()}}
                 Icon{name:"Next";size:16;MouseArea{anchors.fill:parent;onClicked:win.stepFile(1)}}
-                Text{text:fmt(player.time);color:"#9a9a9a";font.pixelSize:12}
+                Text{Layout.preferredWidth:64;text:fmt(player.time);color:"#9a9a9a";font.pixelSize:12}
                 Item{Layout.fillWidth:true;Layout.preferredHeight:22
                     id: seekBar
                     readonly property real progress:player.length>0?Math.max(0,Math.min(1,player.time/player.length)):0
@@ -100,13 +100,13 @@ ApplicationWindow {
                 Text{text:fmt(player.length);color:"#9a9a9a";font.pixelSize:12}
                 Icon{name:"VolumeLow";size:18;tint:player.muted?Theme.muted:"#b5b5b5";MouseArea{anchors.fill:parent;onClicked:player.muted=!player.muted;onWheel:player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5)))} }
                 Item{Layout.preferredWidth:90;Layout.preferredHeight:22
-                    Canvas{anchors.fill:parent;property real level:player.muted?0:player.volume/100;onLevelChanged:requestPaint();onPaint:{let c=getContext("2d"),w=width,h=height;c.clearRect(0,0,w,h);c.fillStyle="#0b0b0b";c.beginPath();c.moveTo(0,h/2);c.lineTo(w,h);c.lineTo(w,0);c.closePath();c.fill();c.save();c.beginPath();c.moveTo(0,h/2);c.lineTo(w*level,h/2+(h/2)*level);c.lineTo(w*level,h/2-(h/2)*level);c.closePath();c.clip();let g=c.createLinearGradient(0,0,w,0);g.addColorStop(0,"#7a9a12");g.addColorStop(1,"#b9d82a");c.fillStyle=g;c.fillRect(0,0,w,h);c.restore()}}
+                    Canvas{anchors.fill:parent;property real level:player.muted?0:player.volume/100;onLevelChanged:requestPaint();onPaint:{let c=getContext("2d"),w=width,h=height,x=w*level,edge=h/3,half=edge/2+(h/2-edge/2)*level;c.clearRect(0,0,w,h);c.lineJoin="round";c.fillStyle="#0b0b0b";c.strokeStyle=c.fillStyle;c.lineWidth=2;c.beginPath();c.moveTo(0,(h-edge)/2);c.lineTo(0,(h+edge)/2);c.lineTo(w,h);c.lineTo(w,0);c.closePath();c.fill();c.stroke();c.fillStyle="#8aa31a";c.strokeStyle=c.fillStyle;c.beginPath();c.moveTo(0,(h-edge)/2);c.lineTo(0,(h+edge)/2);c.lineTo(x,h/2+half);c.lineTo(x,h/2-half);c.closePath();c.fill();c.stroke()}}
                     MouseArea{anchors.fill:parent;onPressed:setLevel(mouse.x);onPositionChanged:if(pressed)setLevel(mouse.x);onWheel:player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5)));function setLevel(x){player.volume=Math.round(100*Math.max(0,Math.min(1,x/width)))} }
                 }
                 Icon{name:"AudioWave01";size:18;MouseArea{anchors.fill:parent;onClicked:player.cycleAudioTrack()}}
                 Icon{name:"Subtitle";size:18;MouseArea{anchors.fill:parent;onClicked:player.cycleSubtitle()}}
-                Icon{name:"Settings02";size:18}
-                Icon{name:"Queue01";size:18;MouseArea{anchors.fill:parent;onClicked:win.libraryOpen=!win.libraryOpen}}
+                Icon{name:"SettingsPlay";size:18}
+                Icon{name:"ListBullets";size:18;MouseArea{anchors.fill:parent;onClicked:win.libraryOpen=!win.libraryOpen}}
             }
         }
     }
