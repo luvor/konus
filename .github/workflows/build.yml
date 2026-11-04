@@ -1,0 +1,60 @@
+name: Build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          modules: 'qtmultimedia qtsvg'
+      - name: Install libVLC (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask vlc
+      - name: Install libVLC (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z -OutFile vlc.7z
+          7z x vlc.7z
+          echo "VLC_SDK_DIR=$((Get-Location).Path)/sdk" >> $env:GITHUB_ENV
+      - name: Install libVLC (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libvlc-dev vlc-plugin-base
+      - name: Configure and build
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: |
+          macdeployqt build/konus.app
+          mkdir -p build/konus.app/Contents/Frameworks build/konus.app/Contents/PlugIns/vlc
+          cp /Applications/VLC.app/Contents/MacOS/lib/libvlc*.dylib build/konus.app/Contents/Frameworks/
+          cp -R /Applications/VLC.app/Contents/MacOS/plugins/. build/konus.app/Contents/PlugIns/vlc/
+          cd build && zip -r ../konus-macos.zip konus.app
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          windeployqt build/konus.exe
+          Copy-Item sdk/bin/libvlc.dll, sdk/bin/libvlccore.dll build/
+          Copy-Item sdk/plugins build/plugins -Recurse
+          Compress-Archive build/* konus-windows.zip
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        run: tar -czf konus-linux.tar.gz -C build konus
+      - uses: actions/upload-artifact@v4
+        with:
+          name: konus-${{ runner.os }}
+          path: konus-*.zip
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: konus-Linux
+          path: konus-linux.tar.gz
