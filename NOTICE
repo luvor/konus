@@ -1,0 +1,23 @@
+Konus third-party notices
+
+Design
+The interface design is by Juxtopposed, based on “I Redesigned VLC After 25 Years”.
+Used under Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+https://www.figma.com/community/file/1691465999134370980
+https://www.youtube.com/watch?v=ERFeOgqk324
+
+Icons
+Selected icon artwork is derived from Hugeicons @hugeicons/core-free-icons 4.4.0,
+licensed under the MIT License. See assets/icons/LICENSE-hugeicons.txt.
+
+Qt
+Qt is available under the GNU Lesser General Public License version 3 (LGPLv3)
+and other licenses. See https://www.qt.io/licensing/.
+
+libVLC
+libVLC is part of VideoLAN's VLC project and is available under the GNU Lesser
+General Public License version 2.1 or later (LGPL-2.1+). See
+https://www.videolan.org/legal.html.
+
+Konus is licensed under GPL-3.0-or-later; see LICENSE.

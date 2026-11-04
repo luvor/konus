@@ -7,6 +7,8 @@
 #include <QQuickStyle>
 #include <QQuickImageProvider>
 #include <QFile>
+#include <QFileInfo>
+#include <QDir>
 #include <QPainter>
 #include <QSvgRenderer>
 
@@ -33,6 +35,10 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle("Basic");
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("Konus");
+#ifdef Q_OS_LINUX
+    const QString bundledPlugins = QDir(QCoreApplication::applicationDirPath()).filePath("../lib/vlc/plugins");
+    if (QFileInfo::exists(bundledPlugins)) qputenv("VLC_PLUGIN_PATH", QDir::cleanPath(bundledPlugins).toUtf8());
+#endif
     Player player;
     QQmlApplicationEngine engine;
     engine.addImageProvider("icons", new IconProvider);

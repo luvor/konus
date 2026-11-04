@@ -26,7 +26,7 @@ No per-frame debug counter is installed in the player.
 
 ## Build
 
-Requirements: CMake 3.21+, C++17 compiler, Qt 6.4+ (Quick, QuickControls2, Multimedia, Svg), and libVLC 3.
+Requirements: CMake 3.21+, C++17 compiler, Qt 6.5+ (Quick, QuickControls2, Multimedia, Svg), and libVLC 3.
 
 ### macOS
 
@@ -64,3 +64,11 @@ see `assets/icons/LICENSE-hugeicons.txt`. The maximize, restore and playlist ass
 use Hugeicons' `Square`, `Copy01` and `ListVideo` paths respectively. The cone is original.
 
 Not affiliated with VideoLAN. VLC is a trademark of VideoLAN.
+
+## License
+
+Konus is licensed under the GNU General Public License, version 3 or (at your option) any later version. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for third-party notices.
+
+## Download
+
+Packaged builds are attached to successful GitHub Actions runs; tagged releases will be listed on the repository's Releases page.

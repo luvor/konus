@@ -38,6 +38,9 @@ signals:
     void volumeChanged();
     void playingChanged();
     void titleChanged();
+    void playbackError(const QString &message);
+    void audioTrackChanged(const QString &name);
+    void subtitleChanged(const QString &name);
 private:
     friend struct PlayerFrameCheck;
     static void *lock(void *, void **planes);
@@ -54,4 +57,5 @@ private:
     int m_volume{80};
     bool m_muted{false};
     QString m_title{QStringLiteral("Konus")};
+    QString m_pendingTitle;
 };

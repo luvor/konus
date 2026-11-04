@@ -24,37 +24,67 @@ jobs:
         run: |
           Invoke-WebRequest https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z -OutFile vlc.7z
           7z x vlc.7z
-          echo "VLC_SDK_DIR=$((Get-Location).Path)/sdk" >> $env:GITHUB_ENV
+          "VLC_SDK_DIR=$((Get-Location).Path)/vlc-3.0.23/sdk" >> $env:GITHUB_ENV
       - name: Install libVLC (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libvlc-dev vlc-plugin-base
       - name: Configure and build
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ runner.os == 'Windows' && format('-DVLC_SDK_DIR={0}/vlc-3.0.23/sdk', github.workspace) || '' }}
+          cmake --build build --config Release --parallel
       - name: Package macOS
         if: runner.os == 'macOS'
         run: |
-          macdeployqt build/konus.app
+          macdeployqt build/konus.app -qmldir=qml
           mkdir -p build/konus.app/Contents/Frameworks build/konus.app/Contents/PlugIns/vlc
-          cp /Applications/VLC.app/Contents/MacOS/lib/libvlc*.dylib build/konus.app/Contents/Frameworks/
+          cp -L /Applications/VLC.app/Contents/MacOS/lib/libvlc*.dylib build/konus.app/Contents/Frameworks/
           cp -R /Applications/VLC.app/Contents/MacOS/plugins/. build/konus.app/Contents/PlugIns/vlc/
+          ditto LICENSE build/konus.app/Contents/Resources/LICENSE
+          ditto NOTICE build/konus.app/Contents/Resources/NOTICE
+          ditto assets/icons/LICENSE-hugeicons.txt build/konus.app/Contents/Resources/LICENSE-hugeicons.txt
+          codesign --force --deep -s - build/konus.app
           cd build && zip -r ../konus-macos.zip konus.app
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          windeployqt build/konus.exe
-          Copy-Item sdk/bin/libvlc.dll, sdk/bin/libvlccore.dll build/
-          Copy-Item sdk/plugins build/plugins -Recurse
-          Compress-Archive build/* konus-windows.zip
+          $stage = "$(Get-Location)/build/Release"
+          $vlc = "$(Get-Location)/vlc-3.0.23"
+          windeployqt --release --qmldir qml "$stage/konus.exe"
+          Copy-Item "$vlc/libvlc.dll", "$vlc/libvlccore.dll" $stage
+          Copy-Item "$vlc/plugins" "$stage/plugins" -Recurse
+          Copy-Item LICENSE, NOTICE, assets/icons/LICENSE-hugeicons.txt $stage
+          Compress-Archive -Path "$stage/*" -DestinationPath konus-windows.zip
       - name: Package Linux
         if: runner.os == 'Linux'
-        run: tar -czf konus-linux.tar.gz -C build konus
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/lib/vlc AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp build/konus AppDir/usr/bin/konus
+          cp -R /usr/lib/x86_64-linux-gnu/vlc/plugins AppDir/usr/lib/vlc/
+          cp /usr/share/doc/libvlc5/copyright AppDir/usr/lib/vlc/COPYRIGHT 2>/dev/null || true
+          cp LICENSE NOTICE assets/icons/LICENSE-hugeicons.txt AppDir/usr/share/
+          printf '[Desktop Entry]\nType=Application\nName=Konus\nExec=konus\nIcon=konus\nCategories=AudioVideo;Player;\n' > AppDir/usr/share/applications/konus.desktop
+          cp assets/icons/cone.svg AppDir/usr/share/icons/hicolor/256x256/apps/konus.svg
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+          mapfile -t vlc_plugins < <(find AppDir/usr/lib/vlc/plugins -type f -name '*.so')
+          plugin_args=()
+          for plugin in "${vlc_plugins[@]}"; do plugin_args+=(--library "$plugin"); done
+          QML_SOURCES_PATHS=qml ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/konus --library /usr/lib/x86_64-linux-gnu/libvlc.so.5 "${plugin_args[@]}" --desktop-file AppDir/usr/share/applications/konus.desktop --plugin qt --output appimage
+          mv AppDir-x86_64.AppImage konus-linux.AppImage
       - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
         with:
-          name: konus-${{ runner.os }}
-          path: konus-*.zip
+          name: konus-macos
+          path: konus-macos.zip
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: konus-windows
+          path: konus-windows.zip
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
-          name: konus-Linux
-          path: konus-linux.tar.gz
+          name: konus-linux
+          path: konus-linux.AppImage
