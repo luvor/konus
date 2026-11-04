@@ -15,6 +15,7 @@ class Player final : public QObject {
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY volumeChanged)
     Q_PROPERTY(bool playing READ playing NOTIFY playingChanged)
     Q_PROPERTY(QString title READ title NOTIFY titleChanged)
+    Q_PROPERTY(QUrl currentUrl READ currentUrl NOTIFY currentUrlChanged)
 public:
     explicit Player(QObject *parent = nullptr);
     ~Player() override;
@@ -26,6 +27,7 @@ public:
     bool muted() const { return m_muted; }
     bool playing() const;
     QString title() const { return m_title; }
+    QUrl currentUrl() const { return m_currentUrl; }
     Q_INVOKABLE void open(const QUrl &url);
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void seek(qint64 ms);
@@ -38,6 +40,7 @@ signals:
     void volumeChanged();
     void playingChanged();
     void titleChanged();
+    void currentUrlChanged();
     void playbackError(const QString &message);
     void audioTrackChanged(const QString &name);
     void subtitleChanged(const QString &name);
@@ -58,4 +61,5 @@ private:
     bool m_muted{false};
     QString m_title{QStringLiteral("Konus")};
     QString m_pendingTitle;
+    QUrl m_currentUrl;
 };

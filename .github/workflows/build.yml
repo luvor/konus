@@ -42,6 +42,7 @@ jobs:
           ditto LICENSE build/konus.app/Contents/Resources/LICENSE
           ditto NOTICE build/konus.app/Contents/Resources/NOTICE
           ditto assets/icons/LICENSE-hugeicons.txt build/konus.app/Contents/Resources/LICENSE-hugeicons.txt
+          ditto assets/fonts/OFL.txt build/konus.app/Contents/Resources/OFL.txt
           codesign --force --deep -s - build/konus.app
           cd build && zip -r ../konus-macos.zip konus.app
       - name: Package Windows
@@ -53,7 +54,7 @@ jobs:
           windeployqt --release --qmldir qml "$stage/konus.exe"
           Copy-Item "$vlc/libvlc.dll", "$vlc/libvlccore.dll" $stage
           Copy-Item "$vlc/plugins" "$stage/plugins" -Recurse
-          Copy-Item LICENSE, NOTICE, assets/icons/LICENSE-hugeicons.txt $stage
+          Copy-Item LICENSE, NOTICE, assets/icons/LICENSE-hugeicons.txt, assets/fonts/OFL.txt $stage
           Compress-Archive -Path "$stage/*" -DestinationPath konus-windows.zip
       - name: Package Linux
         if: runner.os == 'Linux'
@@ -62,7 +63,7 @@ jobs:
           cp build/konus AppDir/usr/bin/konus
           cp -R /usr/lib/x86_64-linux-gnu/vlc/plugins AppDir/usr/lib/vlc/
           cp /usr/share/doc/libvlc5/copyright AppDir/usr/lib/vlc/COPYRIGHT 2>/dev/null || true
-          cp LICENSE NOTICE assets/icons/LICENSE-hugeicons.txt AppDir/usr/share/
+          cp LICENSE NOTICE assets/icons/LICENSE-hugeicons.txt assets/fonts/OFL.txt AppDir/usr/share/
           printf '[Desktop Entry]\nType=Application\nName=Konus\nExec=konus\nIcon=konus\nCategories=AudioVideo;Player;\n' > AppDir/usr/share/applications/konus.desktop
           cp assets/icons/cone.svg AppDir/usr/share/icons/hicolor/256x256/apps/konus.svg
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -71,8 +72,7 @@ jobs:
           mapfile -t vlc_plugins < <(find AppDir/usr/lib/vlc/plugins -type f -name '*.so')
           plugin_args=()
           for plugin in "${vlc_plugins[@]}"; do plugin_args+=(--library "$plugin"); done
-          QML_SOURCES_PATHS=qml ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/konus --library /usr/lib/x86_64-linux-gnu/libvlc.so.5 "${plugin_args[@]}" --desktop-file AppDir/usr/share/applications/konus.desktop --plugin qt --output appimage
-          mv AppDir-x86_64.AppImage konus-linux.AppImage
+          LDAI_OUTPUT=konus-linux.AppImage QML_SOURCES_PATHS=qml ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/konus --library /usr/lib/x86_64-linux-gnu/libvlc.so.5 "${plugin_args[@]}" --desktop-file AppDir/usr/share/applications/konus.desktop --plugin qt --output appimage
       - uses: actions/upload-artifact@v4
         if: runner.os == 'macOS'
         with:

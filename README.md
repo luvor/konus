@@ -63,6 +63,9 @@ Icons are vendored from `@hugeicons/core-free-icons` 4.4.0 under the MIT license
 see `assets/icons/LICENSE-hugeicons.txt`. The maximize, restore and playlist assets
 use Hugeicons' `Square`, `Copy01` and `ListVideo` paths respectively. The cone is original.
 
+Inter by Rasmus Andersson is bundled under the SIL Open Font License 1.1; see
+`assets/fonts/OFL.txt`.
+
 Not affiliated with VideoLAN. VLC is a trademark of VideoLAN.
 
 ## License

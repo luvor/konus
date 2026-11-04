@@ -96,22 +96,38 @@ void Player::display(void *data, void *picture) {
     self->post([self, frame] { if (self->m_sink) self->m_sink->setVideoFrame(frame); self->m_framePending = false; });
 }
 void Player::open(const QUrl &url) {
-    if (!m_instance || !m_player || !url.isValid()) return;
+    if (!m_instance || !m_player || !url.isValid()) {
+        emit playbackError(QStringLiteral("Can't open this media"));
+        return;
+    }
     libvlc_media_t *media = url.isLocalFile() ? libvlc_media_new_path(m_instance, url.toLocalFile().toUtf8().constData()) : libvlc_media_new_location(m_instance, url.toString().toUtf8().constData());
-    if (!media) return;
+    if (!media) {
+        emit playbackError(QStringLiteral("Can't open %1").arg(url.fileName()));
+        return;
+    }
     libvlc_media_player_set_media(m_player, media); libvlc_media_release(media);
     const QString name = url.isLocalFile() ? QFileInfo(url.toLocalFile()).fileName() : url.fileName();
+    if (m_currentUrl != url) { m_currentUrl = url; emit currentUrlChanged(); }
     m_pendingTitle = name;
     if (libvlc_media_player_play(m_player) != 0) {
         emit playbackError(QStringLiteral("Can't play %1").arg(name));
         m_pendingTitle.clear();
     }
 }
-void Player::togglePause() { if (m_player) libvlc_media_player_pause(m_player); }
+void Player::togglePause() {
+    if (!m_player) return;
+    const auto state = libvlc_media_player_get_state(m_player);
+    if (state == libvlc_Ended || state == libvlc_Error) {
+        libvlc_media_player_stop(m_player);
+        libvlc_media_player_play(m_player);
+    } else {
+        libvlc_media_player_pause(m_player);
+    }
+}
 void Player::seek(qint64 ms) { if (m_player) libvlc_media_player_set_time(m_player, ms); }
 void Player::cycleSubtitle() { if (!m_player) return; auto ids=libvlc_video_get_spu_description(m_player); if (!ids) return; int current=libvlc_video_get_spu(m_player), next=-1; QString name=QStringLiteral("Subtitles off"); bool selected=false; for(auto p=ids;p;p=p->p_next) { if(p->i_id>current){next=p->i_id;name=QString::fromUtf8(p->psz_name);selected=true;break;} } if(!selected) for(auto p=ids;p;p=p->p_next) if(p->i_id==-1) {name=QStringLiteral("Subtitles off");break;} libvlc_track_description_list_release(ids); libvlc_video_set_spu(m_player,next); emit subtitleChanged(name); }
 void Player::cycleAudioTrack() { if (!m_player) return; auto ids=libvlc_audio_get_track_description(m_player); if(!ids)return; int current=libvlc_audio_get_track(m_player), next=-1; QString name; for(auto p=ids;p;p=p->p_next) if(p->i_id>current&&p->i_id!=-1){next=p->i_id;name=QString::fromUtf8(p->psz_name);break;} if(next==-1) for(auto p=ids;p;p=p->p_next) if(p->i_id!=-1){next=p->i_id;name=QString::fromUtf8(p->psz_name);break;} libvlc_track_description_list_release(ids); if(next!=-1){libvlc_audio_set_track(m_player,next);emit audioTrackChanged(name);} }
-void Player::setVolume(int v) { m_volume=qBound(0,v,100); if(m_player)libvlc_audio_set_volume(m_player,m_muted?0:m_volume); emit volumeChanged(); }
+void Player::setVolume(int v) { m_volume=qBound(0,v,100); if(m_volume>0)m_muted=false; if(m_player)libvlc_audio_set_volume(m_player,m_muted?0:m_volume); emit volumeChanged(); }
 void Player::setMuted(bool v) { m_muted=v; if(m_player)libvlc_audio_set_volume(m_player,m_muted?0:m_volume); emit volumeChanged(); }
 qint64 Player::time() const { return m_player?libvlc_media_player_get_time(m_player):0; }
 qint64 Player::position() const { return m_player?libvlc_media_player_get_position(m_player)*length():0; }

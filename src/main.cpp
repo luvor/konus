@@ -1,5 +1,8 @@
 #include "player.h"
 #include <QGuiApplication>
+#include <QFont>
+#include <QFontDatabase>
+#include <QDebug>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -35,6 +38,10 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle("Basic");
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("Konus");
+    const int regularFont = QFontDatabase::addApplicationFont(":/konus/assets/fonts/Inter-Regular.ttf");
+    const int mediumFont = QFontDatabase::addApplicationFont(":/konus/assets/fonts/Inter-Medium.ttf");
+    if (regularFont < 0 || mediumFont < 0) qWarning() << "Failed to load bundled Inter font; using system font";
+    else QGuiApplication::setFont(QFont("Inter"));
 #ifdef Q_OS_LINUX
     const QString bundledPlugins = QDir(QCoreApplication::applicationDirPath()).filePath("../lib/vlc/plugins");
     if (QFileInfo::exists(bundledPlugins)) qputenv("VLC_PLUGIN_PATH", QDir::cleanPath(bundledPlugins).toUtf8());

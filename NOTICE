@@ -11,6 +11,10 @@ Icons
 Selected icon artwork is derived from Hugeicons @hugeicons/core-free-icons 4.4.0,
 licensed under the MIT License. See assets/icons/LICENSE-hugeicons.txt.
 
+Font
+Inter by Rasmus Andersson is licensed under the SIL Open Font License 1.1.
+See assets/fonts/OFL.txt.
+
 Qt
 Qt is available under the GNU Lesser General Public License version 3 (LGPLv3)
 and other licenses. See https://www.qt.io/licensing/.
