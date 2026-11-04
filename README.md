@@ -11,6 +11,19 @@ Konus is an open-source desktop video player built with Qt 6 QML and libVLC 3, b
 - Space, arrows, M, F, Escape, drag and drop, and file picker controls.
 - Videos from `~/Movies`; music from `~/Music`.
 
+## Local checks
+
+`KONUS_GRAB=/tmp/grab.png <app> <media>` reveals the UI before capturing and exits.
+Add `KONUS_GRAB_HIDDEN=/tmp/grab-hidden.png` to capture video alone after the normal
+2.5-second idle timer. Keep the pointer still during this check. A failed save or
+UI that remains visible at the second capture exits with code 2.
+
+For the dropped-picture regression check, configure with `-DKONUS_BUILD_FRAME_CHECK=ON`,
+build, and run `build/konus-frame-check`. It forces 64 lock/unlock pairs without display
+and checks bounded RSS growth on macOS (less than 16 MiB), copied pixels, row alignment,
+queued-frame limits and format changes. RSS comparison is skipped on other platforms.
+No per-frame debug counter is installed in the player.
+
 ## Build
 
 Requirements: CMake 3.21+, C++17 compiler, Qt 6.4+ (Quick, QuickControls2, Multimedia, Svg), and libVLC 3.
@@ -45,5 +58,9 @@ cmake --build build -j
 ## Credits
 
 Design by [Juxtopposed](https://www.figma.com/community/file/1691465999134370980), based on [I Redesigned VLC After 25 Years](https://www.youtube.com/watch?v=ERFeOgqk324), used with CC BY 4.0 attribution. Playback engine: [libVLC by VideoLAN](https://www.videolan.org/).
+
+Icons are vendored from `@hugeicons/core-free-icons` 4.4.0 under the MIT license;
+see `assets/icons/LICENSE-hugeicons.txt`. The maximize, restore and playlist assets
+use Hugeicons' `Square`, `Copy01` and `ListVideo` paths respectively. The cone is original.
 
 Not affiliated with VideoLAN. VLC is a trademark of VideoLAN.

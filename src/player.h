@@ -5,7 +5,6 @@
 #include <QVideoSink>
 #include <vlc/vlc.h>
 #include <atomic>
-#include <QVideoFrame>
 
 class Player final : public QObject {
     Q_OBJECT
@@ -40,6 +39,7 @@ signals:
     void playingChanged();
     void titleChanged();
 private:
+    friend struct PlayerFrameCheck;
     static void *lock(void *, void **planes);
     static void unlock(void *, void *, void *const *planes);
     static void display(void *, void *);
@@ -50,7 +50,7 @@ private:
     libvlc_instance_t *m_instance{};
     libvlc_media_player_t *m_player{};
     QVideoSink *m_sink{};
-    std::atomic<int> m_width{0}, m_height{0};
+    std::atomic<bool> m_framePending{false};
     int m_volume{80};
     bool m_muted{false};
     QString m_title{QStringLiteral("Konus")};

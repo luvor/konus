@@ -5,8 +5,21 @@
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 #include <QUrl>
+#include <QtGlobal>
+#include <climits>
+#include <limits>
+#include <new>
 #include <cstdlib>
 #include <cstring>
+
+namespace {
+struct VideoBuffer {
+    Player *player;
+    unsigned width, height, pitch;
+    void *pixels;
+    ~VideoBuffer() { qFreeAligned(pixels); }
+};
+}
 
 Player::Player(QObject *parent) : QObject(parent) {
 #ifdef Q_OS_MACOS
@@ -27,33 +40,47 @@ Player::Player(QObject *parent) : QObject(parent) {
         libvlc_audio_set_volume(m_player, m_volume);
     }
 }
-Player::~Player() { if (m_player) libvlc_media_player_release(m_player); if (m_instance) libvlc_release(m_instance); }
+Player::~Player() { if (m_player) { libvlc_media_player_stop(m_player); libvlc_media_player_release(m_player); } if (m_instance) libvlc_release(m_instance); }
 void Player::post(const std::function<void()> &fn) { QMetaObject::invokeMethod(this, fn, Qt::QueuedConnection); }
 void Player::event(const libvlc_event_t *e, void *data) {
     auto *self = static_cast<Player *>(data);
     self->post([self, type=e->type] { if (type == libvlc_MediaPlayerPlaying || type == libvlc_MediaPlayerPaused || type == libvlc_MediaPlayerStopped) emit self->playingChanged(); emit self->positionChanged(); });
 }
 unsigned Player::setup(void **opaque, char *chroma, unsigned *w, unsigned *h, unsigned *pitches, unsigned *lines) {
-    auto *self = static_cast<Player *>(*opaque);
+    if (!*w || !*h || *w > (INT_MAX - 31u) / 4 || *h > INT_MAX - 31u) return 0;
+    const unsigned pitch = (*w * 4 + 31) & ~31u, rows = (*h + 31) & ~31u;
+    if (rows > std::numeric_limits<size_t>::max() / pitch) return 0;
+    void *pixels = qMallocAligned(size_t(pitch) * rows, 32);
+    if (!pixels) return 0;
+    auto *buffer = new (std::nothrow) VideoBuffer{static_cast<Player *>(*opaque), *w, *h, pitch, pixels};
+    if (!buffer) { qFreeAligned(pixels); return 0; }
     std::memcpy(chroma, "RV32", 4);
-    self->m_width = int(*w); self->m_height = int(*h);
-    *pitches = *w * 4; *lines = *h; return 1;
+    *opaque = buffer;
+    *pitches = pitch; *lines = rows; return 1;
 }
-void Player::cleanup(void *) {}
+void Player::cleanup(void *data) { delete static_cast<VideoBuffer *>(data); }
 void *Player::lock(void *data, void **planes) {
-    auto *self = static_cast<Player *>(data);
-    // ponytail: CPU copy per frame can stutter at 4K60; upgrade to libVLC 4 output callbacks or a native surface.
-    auto *frame = new QVideoFrame(QVideoFrameFormat(QSize(self->m_width.load(), self->m_height.load()), QVideoFrameFormat::Format_BGRA8888));
-    if (!frame->map(QVideoFrame::WriteOnly)) { delete frame; *planes = nullptr; return nullptr; }
-    *planes = frame->bits(0); return frame;
+    auto *buffer = static_cast<VideoBuffer *>(data);
+    // libVLC 3 vmem serializes prepare/display; even a dropped picture reuses this buffer.
+    *planes = buffer->pixels; return buffer;
 }
 void Player::unlock(void *data, void *picture, void *const *) {
     Q_UNUSED(data); Q_UNUSED(picture);
 }
 void Player::display(void *data, void *picture) {
-    auto *self = static_cast<Player *>(data);
-    auto *frame = static_cast<QVideoFrame *>(picture);
-    self->post([self, frame] { if (self->m_sink) self->m_sink->setVideoFrame(*frame); frame->unmap(); delete frame; });
+    Q_UNUSED(data);
+    auto *buffer = static_cast<VideoBuffer *>(picture);
+    auto *self = buffer->player;
+    // shortcut: keep one pending GUI frame; use a bounded timestamp queue if frame-accurate output is needed.
+    if (self->m_framePending.exchange(true)) return;
+    // ponytail: CPU copy per frame can stutter at 4K60; upgrade to libVLC 4 output callbacks or a native surface.
+    QVideoFrame frame(QVideoFrameFormat(QSize(int(buffer->width), int(buffer->height)), QVideoFrameFormat::Format_BGRX8888));
+    if (!frame.map(QVideoFrame::WriteOnly)) { self->m_framePending = false; return; }
+    for (unsigned y = 0; y < buffer->height; ++y)
+        std::memcpy(frame.bits(0) + size_t(y) * frame.bytesPerLine(0),
+                    static_cast<const char *>(buffer->pixels) + size_t(y) * buffer->pitch, size_t(buffer->width) * 4);
+    frame.unmap();
+    self->post([self, frame] { if (self->m_sink) self->m_sink->setVideoFrame(frame); self->m_framePending = false; });
 }
 void Player::open(const QUrl &url) {
     if (!m_player || !url.isValid()) return;
