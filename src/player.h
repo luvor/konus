@@ -5,6 +5,7 @@
 #include <QVideoSink>
 #include <vlc/vlc.h>
 #include <atomic>
+#include <QVideoFrame>
 
 class Player final : public QObject {
     Q_OBJECT

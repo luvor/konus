@@ -47,7 +47,9 @@ void *Player::lock(void *data, void **planes) {
     if (!frame->map(QVideoFrame::WriteOnly)) { delete frame; *planes = nullptr; return nullptr; }
     *planes = frame->bits(0); return frame;
 }
-void Player::unlock(void *, void *, void *const *) {}
+void Player::unlock(void *data, void *picture, void *const *) {
+    Q_UNUSED(data); Q_UNUSED(picture);
+}
 void Player::display(void *data, void *picture) {
     auto *self = static_cast<Player *>(data);
     auto *frame = static_cast<QVideoFrame *>(picture);

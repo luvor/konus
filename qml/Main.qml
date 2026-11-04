@@ -14,90 +14,99 @@ ApplicationWindow {
     property bool showChrome: true
     property bool libraryOpen: true
     property string section: "Videos"
-    property int volumeValue: player.volume
-    property bool seeking: false
-    function reveal() { showChrome = true; idle.restart(); if (!player.playing) idle.stop() }
+    function reveal() { showChrome=true; idle.restart(); if (!player.playing) idle.stop() }
     function fmt(ms) { let s=Math.floor(Math.max(0,ms)/1000); return Math.floor(s/60).toString().padStart(2,"0")+":"+(s%60).toString().padStart(2,"0") }
-    Timer { id: idle; interval: 2500; onTriggered: if (player.playing) win.showChrome=false }
-    Connections { target: player; function onPlayingChanged() { if (player.playing) idle.restart(); else win.reveal() } }
-    FileDialog { id: picker; nameFilters: ["Video files (*.mp4 *.mkv *.mov *.avi *.webm *.m4v)", "All files (*)"]; onAccepted: player.open(selectedFile) }
-    FolderListModel { id: files; folder: section === "Music" ? StandardPaths.writableLocation(StandardPaths.MusicLocation) : StandardPaths.writableLocation(StandardPaths.MoviesLocation); showDirs: false; nameFilters: section === "Music" ? ["*.mp3","*.flac","*.m4a","*.wav","*.ogg"] : ["*.mp4","*.mkv","*.mov","*.avi","*.webm","*.m4v"] }
-    Shortcut { sequence: "Space"; onActivated: player.togglePause() }
-    Shortcut { sequence: "Left"; onActivated: player.seek(Math.max(0,player.time-5000)) }
-    Shortcut { sequence: "Right"; onActivated: player.seek(player.time+5000) }
-    Shortcut { sequence: "Up"; onActivated: player.volume=Math.min(100,player.volume+5) }
-    Shortcut { sequence: "Down"; onActivated: player.volume=Math.max(0,player.volume-5) }
-    Shortcut { sequence: "M"; onActivated: player.muted=!player.muted }
-    Shortcut { sequence: "F"; onActivated: win.visibility=win.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen }
-    Shortcut { sequence: "Escape"; onActivated: if(win.visibility===Window.FullScreen)win.visibility=Window.Windowed }
-    Behavior on showChrome { NumberAnimation { duration: 180 } }
-    DropArea { anchors.fill: parent; onDropped: if(drop.urls.length)player.open(drop.urls[0]) }
-    MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; hoverEnabled: true; cursorShape: win.showChrome ? Qt.ArrowCursor : Qt.BlankCursor; onPositionChanged: win.reveal(); onWheel: { player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5))) } }
+    function stepFile(delta) { for(let i=0;i<files.count;i++) if(files.get(i,"fileName")===player.title) {let n=i+delta;if(n>=0&&n<files.count)player.open(files.get(n,"fileURL"));return} }
+    Timer { id: idle; interval:2500; onTriggered:if(player.playing)win.showChrome=false }
+    Connections { target:player; function onPlayingChanged(){if(player.playing)idle.restart();else win.reveal()} }
+    FileDialog { id:picker; nameFilters:["Video files (*.mp4 *.mkv *.mov *.avi *.webm *.m4v)","All files (*)"];onAccepted:player.open(selectedFile) }
+    FolderListModel { id:files; folder:section==="Music"?StandardPaths.writableLocation(StandardPaths.MusicLocation):StandardPaths.writableLocation(StandardPaths.MoviesLocation);showDirs:false;nameFilters:section==="Music"?["*.mp3","*.flac","*.m4a","*.wav","*.ogg"]:["*.mp4","*.mkv","*.mov","*.avi","*.webm","*.m4v"] }
+    Shortcut { sequence:"Space";onActivated:player.togglePause() }
+    Shortcut { sequence:"Left";onActivated:player.seek(Math.max(0,player.time-5000)) }
+    Shortcut { sequence:"Right";onActivated:player.seek(player.time+5000) }
+    Shortcut { sequence:"Up";onActivated:player.volume=Math.min(100,player.volume+5) }
+    Shortcut { sequence:"Down";onActivated:player.volume=Math.max(0,player.volume-5) }
+    Shortcut { sequence:"M";onActivated:player.muted=!player.muted }
+    Shortcut { sequence:"F";onActivated:win.visibility=win.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen }
+    Shortcut { sequence:"Escape";onActivated:if(win.visibility===Window.FullScreen)win.visibility=Window.Windowed }
+    Behavior on showChrome { NumberAnimation { duration:180 } }
+    DropArea { anchors.fill:parent;onDropped:if(drop.urls.length)player.open(drop.urls[0]) }
+    MouseArea { anchors.fill:parent;acceptedButtons:Qt.NoButton;hoverEnabled:true;cursorShape:win.showChrome?Qt.ArrowCursor:Qt.BlankCursor;onPositionChanged:win.reveal();onWheel:player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5))) }
     ColumnLayout {
-        anchors.fill: parent; spacing: 0
+        anchors.fill:parent;spacing:0
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: Theme.titleHeight; color: Theme.window
-            visible: win.showChrome; opacity: win.showChrome?1:0
-            RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 12
-                Image { source: "qrc:/konus/assets/icons/cone.svg"; sourceSize: Qt.size(20, 24); Layout.preferredWidth: 20; Layout.preferredHeight: 24 }
-                Text { text: "···"; color: Theme.muted; font.pixelSize: 18 }
-                ToolButton { text: "◧"; onClicked: win.libraryOpen=!win.libraryOpen }
-                Text { text: section + "  /"; color: Theme.muted; font.pixelSize: 12 }
-                Item { Layout.fillWidth: true }
-                Text { text: player.title; color: Theme.text; font.pixelSize: 12 }
-                Item { Layout.fillWidth: true }
-                ToolButton { text: "—"; onClicked: win.showMinimized() }
-                ToolButton { text: "□"; onClicked: win.visibility=win.visibility===Window.Maximized?Window.Windowed:Window.Maximized }
-                ToolButton { text: "⛶"; onClicked: win.visibility=win.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen }
-                ToolButton { text: "×"; onClicked: win.close() }
+            Layout.fillWidth:true;Layout.preferredHeight:40;color:"#1c1c1c";visible:win.showChrome;opacity:visible?1:0
+            RowLayout { anchors.fill:parent;anchors.leftMargin:14;anchors.rightMargin:10;spacing:10
+                Image { source:"qrc:/konus/assets/icons/cone.svg";sourceSize:Qt.size(18,22);Layout.preferredWidth:18;Layout.preferredHeight:22 }
+                Icon { name:"MoreHorizontal";size:18 }
+                Icon { name:"SidebarLeft";size:18;MouseArea{anchors.fill:parent;onClicked:win.libraryOpen=!win.libraryOpen} }
+                Rectangle { width:1;height:20;color:"#383838" }
+                Icon { name:"Folder01";size:18 }
+                Text { text:section;color:"#9a9a9a";font.pixelSize:14 }
+                Item { Layout.fillWidth:true }
+                Text { text:player.title;color:"#9a9a9a";font.pixelSize:13 }
+                Item { Layout.fillWidth:true }
+                Repeater { model:["MinusSign","Maximize01","FullScreen","Cancel01"];delegate:Icon{required property string modelData;name:modelData;size:16;MouseArea{anchors.fill:parent;onClicked:if(modelData==="Cancel01")win.close();else if(modelData==="MinusSign")win.showMinimized();else win.visibility=modelData==="FullScreen"?(win.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen):(win.visibility===Window.Maximized?Window.Windowed:Window.Maximized)}} }
             }
-            MouseArea { anchors.fill: parent; z: -1; property point start; onPressed: start=Qt.point(mouse.x,mouse.y); onPositionChanged: if(pressed)win.startSystemMove(); onDoubleClicked: win.visibility=win.visibility===Window.Maximized?Window.Windowed:Window.Maximized }
+            MouseArea { anchors.fill:parent;z:-1;onPressed:win.startSystemMove();onDoubleClicked:win.visibility=win.visibility===Window.Maximized?Window.Windowed:Window.Maximized }
         }
-        RowLayout { Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
-            Rectangle { Layout.fillHeight: true; Layout.preferredWidth: Theme.railWidth; color: Theme.rail
-                Column { anchors.fill: parent; anchors.topMargin: 14; spacing: 7
-                    Repeater { model: ["⌂","▣","♫","◉","☷","◴","＋"]; delegate: Item { width: Theme.railWidth; height: 42
-                        Rectangle { visible: win.section===(["Home","Videos","Music","Network","Playlists","Recent","Add"])[index]; anchors.left: parent.left; width: 3; height: 30; anchors.verticalCenter: parent.verticalCenter; color: Theme.accent }
-                        Text { anchors.centerIn: parent; text: modelData; color: index===1&&section==="Videos"||index===2&&section==="Music"?Theme.accent:Theme.muted; font.pixelSize: 20 }
-                        MouseArea { anchors.fill: parent; onClicked: if(index===6)picker.open(); else {section=["Home","Videos","Music","Network","Playlists","Recent"][index];libraryOpen=true} }
-                    } }
+        RowLayout { Layout.fillWidth:true;Layout.fillHeight:true;spacing:0
+            Rectangle { visible:win.showChrome;Layout.fillHeight:true;Layout.preferredWidth:visible?52:0;color:"#1c1c1c"
+                Column { anchors.horizontalCenter:parent.horizontalCenter;anchors.top:parent.top;anchors.topMargin:8;spacing:0
+                    Repeater { model:["Home01","PlaySquare","FolderMusic","Wifi01","Playlist01","Clock01","Add01"];delegate:Item{required property string modelData;required property int index;width:52;height:41;Icon{anchors.centerIn:parent;name:modelData;size:20;tint:parent.index===1&&section==="Videos"||parent.index===2&&section==="Music"?Theme.accent:Theme.muted}MouseArea{anchors.fill:parent;onClicked:if(index===6)picker.open();else{section=["Home","Videos","Music","Network","Playlists","Recent"][index];libraryOpen=true}}} }
                 }
             }
-            Rectangle { visible: win.libraryOpen && win.showChrome; Layout.fillHeight: true; Layout.preferredWidth: visible?Theme.panelWidth:0; color: Theme.panel
-                ColumnLayout { anchors.fill: parent; anchors.margins: 16; spacing: 12
-                    RowLayout { Layout.fillWidth: true; Text { text:"‹   ›"; color:Theme.muted } Item {Layout.fillWidth:true} Text {text:"⌕";color:Theme.muted} }
-                    Text { text:section; color:Theme.text; font.pixelSize:18; font.weight:Font.Medium }
-                    RowLayout { Layout.fillWidth:true; Text {text:files.count+" items";color:Theme.muted;font.pixelSize:11} Item{Layout.fillWidth:true} Text{text:"⇅   ☷";color:Theme.muted} }
-                    Repeater { model: files; delegate: Rectangle { Layout.fillWidth:true; height:40; color: itemMouse.containsMouse?"#252525":"transparent"; radius:3
-                        Text { anchors.left:parent.left; anchors.leftMargin:9; anchors.verticalCenter:parent.verticalCenter; text:fileName; color:Theme.text; font.pixelSize:12; elide:Text.ElideRight; width:parent.width-18 }
-                        MouseArea { id:itemMouse; anchors.fill:parent; hoverEnabled:true; onDoubleClicked:player.open(fileUrl); onClicked:player.open(fileUrl) }
-                    } }
-                    Item { Layout.fillHeight:true }
+            Rectangle { visible:win.showChrome&&win.libraryOpen;Layout.fillHeight:true;Layout.preferredWidth:visible?Theme.panelWidth:0;color:"#111111"
+                ColumnLayout { anchors.fill:parent;anchors.margins:14;spacing:0
+                    RowLayout { Layout.fillWidth:true;Layout.preferredHeight:34;spacing:10
+                        Icon{name:"ArrowLeft01";size:18}
+                        Icon{name:"ArrowRight01";size:18;tint:"#555555"}
+                        Text{text:section;color:"#b7b7b7";font.pixelSize:16}
+                        Item{Layout.fillWidth:true}
+                        Icon{name:"MoreHorizontal";size:18}
+                        Icon{name:"LinkSquare01";size:18}
+                    }
+                    RowLayout { Layout.fillWidth:true;Layout.preferredHeight:36;spacing:12
+                        Text{text:files.count+" items";color:Theme.muted;font.pixelSize:12}
+                        Item{Layout.fillWidth:true}
+                        Icon{name:"Sorting01";size:18}
+                        Icon{name:"ListView";size:18}
+                        Icon{name:"Search01";size:18}
+                    }
+                    Rectangle{Layout.fillWidth:true;height:1;color:"#262626"}
+                    RowLayout{Layout.fillWidth:true;Layout.preferredHeight:40;spacing:12;Icon{name:"Add01";size:18;tint:Theme.muted}Text{text:"Add…";color:Theme.muted;font.pixelSize:13}}
+                    Repeater { model:files;delegate:Rectangle{required property string fileName;required property url fileURL;Layout.fillWidth:true;height:40;color:rowMouse.containsMouse?"#252525":"transparent";radius:3;RowLayout{anchors.fill:parent;anchors.leftMargin:7;spacing:10;Icon{name:win.section==="Music"?"MusicNote01":"Video01";size:18;tint:Theme.muted}Text{Layout.fillWidth:true;text:fileName;color:Theme.text;font.pixelSize:12;elide:Text.ElideRight}}MouseArea{id:rowMouse;anchors.fill:parent;hoverEnabled:true;onClicked:player.open(fileURL)}} }
+                    Item{Layout.fillHeight:true}
                 }
             }
-            Rectangle { Layout.fillWidth:true; Layout.fillHeight:true; color:Theme.video
-                VideoOutput { id: output; anchors.fill:parent; fillMode:VideoOutput.PreserveAspectFit }
-                MouseArea { anchors.fill:parent; acceptedButtons:Qt.LeftButton; onDoubleClicked:win.visibility=win.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen }
+            Rectangle { Layout.fillWidth:true;Layout.fillHeight:true;color:Theme.video
+                VideoOutput{id:output;anchors.fill:parent;fillMode:VideoOutput.PreserveAspectFit}
+                MouseArea{anchors.fill:parent;acceptedButtons:Qt.LeftButton;onDoubleClicked:win.visibility=win.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen}
             }
         }
-        Rectangle { Layout.fillWidth:true; Layout.preferredHeight:68; color:Theme.window; visible:win.showChrome; opacity:win.showChrome?1:0
-            ColumnLayout { anchors.fill:parent; anchors.leftMargin:18; anchors.rightMargin:18; spacing:0
-                RowLayout { Layout.fillWidth:true; Layout.fillHeight:true; spacing:13
-                    ToolButton { text:"|◀"; onClicked:player.seek(0) }
-                    ToolButton { text:player.playing?"Ⅱ":"▶"; onClicked:player.togglePause(); background:Rectangle{color:Theme.accent;radius:4} }
-                    ToolButton { text:"▶|"; onClicked:player.seek(player.length) }
-                    Text { text:fmt(player.time);color:Theme.muted;font.pixelSize:11 }
-                    Slider { id:seek; Layout.fillWidth:true; from:0;to:Math.max(1,player.length); value:player.time; onMoved:player.seek(value); background:Rectangle{ x:seek.leftPadding;y:seek.topPadding+seek.availableHeight/2-3;width:seek.availableWidth;height:6;radius:3;color:"#090909"; Rectangle{width:seek.visualPosition*parent.width;height:parent.height;color:Theme.accent;radius:3} } handle:Rectangle{width:10;height:10;radius:5;color:Theme.accent} }
-                    Text { text:fmt(player.length);color:Theme.muted;font.pixelSize:11 }
-                    Text { text:"◢";font.pixelSize:20;color:player.muted?Theme.muted:"#c6e356"; MouseArea{anchors.fill:parent;onWheel:player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5)));onClicked:player.muted=!player.muted} }
-                    Slider { Layout.preferredWidth:80;from:0;to:100;value:player.volume;onMoved:player.volume=value }
-                    Text { text:"♫";color:Theme.muted;MouseArea{anchors.fill:parent;onClicked:player.cycleAudioTrack()} }
-                    Text { text:"▤";color:Theme.muted;MouseArea{anchors.fill:parent;onClicked:player.cycleSubtitle()} }
-                    Text { text:"⚙";color:Theme.muted }
-                    Text { text:"☷";color:Theme.muted;MouseArea{anchors.fill:parent;onClicked:win.libraryOpen=!win.libraryOpen} }
+        Rectangle { Layout.fillWidth:true;Layout.preferredHeight:44;color:"#161616";visible:win.showChrome;opacity:visible?1:0
+            RowLayout{anchors.fill:parent;anchors.leftMargin:28;anchors.rightMargin:24;spacing:14
+                Icon{name:"Previous";size:16;MouseArea{anchors.fill:parent;onClicked:win.stepFile(-1)}}
+                Rectangle{Layout.preferredWidth:56;Layout.preferredHeight:28;color:Theme.accent;radius:4;Icon{anchors.centerIn:parent;name:player.playing?"Pause":"Play";size:16;tint:"#1a1a1a"}MouseArea{anchors.fill:parent;onClicked:player.togglePause()}}
+                Icon{name:"Next";size:16;MouseArea{anchors.fill:parent;onClicked:win.stepFile(1)}}
+                Text{text:fmt(player.time);color:"#9a9a9a";font.pixelSize:12}
+                Item{Layout.fillWidth:true;Layout.preferredHeight:22
+                    Rectangle{anchors.fill:parent;color:"#0b0b0b";radius:4;Rectangle{width:parent.width*(player.length?player.time/player.length:0);height:parent.height;color:"#4a2a0c";radius:4}}
+                    Rectangle{x:parent.width*(player.length?player.time/player.length:0)-3;width:6;height:22;color:Theme.accent;radius:3}
+                    MouseArea{anchors.fill:parent;onPressed:seekAt(mouse.x);onPositionChanged:if(pressed)seekAt(mouse.x);function seekAt(x){if(player.length)player.seek(player.length*Math.max(0,Math.min(1,x/width)))} }
                 }
+                Text{text:fmt(player.length);color:"#9a9a9a";font.pixelSize:12}
+                Icon{name:"VolumeLow";size:18;tint:player.muted?Theme.muted:"#b5b5b5";MouseArea{anchors.fill:parent;onClicked:player.muted=!player.muted;onWheel:player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5)))} }
+                Item{Layout.preferredWidth:90;Layout.preferredHeight:22
+                    Canvas{anchors.fill:parent;property real level:player.muted?0:player.volume/100;onLevelChanged:requestPaint();onPaint:{let c=getContext("2d"),w=width,h=height;c.clearRect(0,0,w,h);c.fillStyle="#0b0b0b";c.beginPath();c.moveTo(0,h/2);c.lineTo(w,h);c.lineTo(w,0);c.closePath();c.fill();c.save();c.beginPath();c.moveTo(0,h/2);c.lineTo(w*level,h/2+(h/2)*level);c.lineTo(w*level,h/2-(h/2)*level);c.closePath();c.clip();let g=c.createLinearGradient(0,0,w,0);g.addColorStop(0,"#7a9a12");g.addColorStop(1,"#b9d82a");c.fillStyle=g;c.fillRect(0,0,w,h);c.restore()}}
+                    MouseArea{anchors.fill:parent;onPressed:setLevel(mouse.x);onPositionChanged:if(pressed)setLevel(mouse.x);onWheel:player.volume=Math.max(0,Math.min(100,player.volume+(wheel.angleDelta.y>0?5:-5)));function setLevel(x){player.volume=Math.round(100*Math.max(0,Math.min(1,x/width)))} }
+                }
+                Icon{name:"AudioWave01";size:18;MouseArea{anchors.fill:parent;onClicked:player.cycleAudioTrack()}}
+                Icon{name:"Subtitle";size:18;MouseArea{anchors.fill:parent;onClicked:player.cycleSubtitle()}}
+                Icon{name:"Settings02";size:18}
+                Icon{name:"Queue01";size:18;MouseArea{anchors.fill:parent;onClicked:win.libraryOpen=!win.libraryOpen}}
             }
         }
     }
-    Component.onCompleted: player.attachSink(output.videoSink)
+    Component.onCompleted:player.attachSink(output.videoSink)
 }
