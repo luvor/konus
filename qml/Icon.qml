@@ -11,10 +11,17 @@ Item {
     property bool closeButton: false
     property string tooltip: ""
     property string accessibleName: tooltip
+    signal activated()
     width: interactive ? Math.max(size, 32) : size
     height: interactive ? Math.max(size, 32) : size
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName || name
+    Accessible.ignored: !interactive
+    Accessible.onPressAction: icon.activated()
+    activeFocusOnTab: interactive
+    Keys.onSpacePressed: { activated(); event.accepted = true }
+    Keys.onReturnPressed: { activated(); event.accepted = true }
+    Keys.onEnterPressed: { activated(); event.accepted = true }
 
     HoverHandler { id: hover; enabled: icon.interactive || icon.tooltip.length > 0 }
     TapHandler { id: tap; enabled: icon.interactive }
@@ -27,6 +34,7 @@ Item {
         visible: icon.interactive && (hover.hovered || tap.pressed)
         color: icon.closeButton && hover.hovered ? "#c42b1c" : tap.pressed ? "#ffffff24" : "#ffffff14"
     }
+    Rectangle { anchors.fill: parent; radius: 6; color: "transparent"; border.width: icon.activeFocus ? 1 : 0; border.color: Theme.accent }
     Image {
         anchors.centerIn: parent
         width: icon.size

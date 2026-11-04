@@ -26,6 +26,7 @@ ApplicationWindow {
     property bool seekPressed: false
     property bool volumePressed: false
     property int wheelRemainder: 0
+    property real seekDisplay: -1
     property string searchText: ""
     property bool searchOpen: false
     readonly property bool chromeHovered: titleHover.hovered || railHover.hovered || panelHover.hovered || controlsHover.hovered
@@ -47,6 +48,9 @@ ApplicationWindow {
             }
         }
     }
+    function syncCurrentRow() {
+        for (let i = 0; i < files.count; i++) if (sameUrl(files.get(i, "fileUrl"), player.currentUrl)) { fileList.currentIndex = i; return }
+    }
     function notify(message, duration) {
         osd.text = message
         osd.opacity = 1
@@ -57,7 +61,7 @@ ApplicationWindow {
         let total = wheelRemainder + delta
         let steps = Math.trunc(total / 120)
         wheelRemainder = total - steps * 120
-        if (steps) player.volume = Math.max(0, Math.min(100, player.volume + steps * 5))
+        if (steps) { player.volume = Math.max(0, Math.min(100, player.volume + steps * 5)); notify("Volume " + player.volume + "%") }
     }
     function setMuted(muted) {
         player.muted = muted
@@ -73,13 +77,13 @@ ApplicationWindow {
         }
     }
     Timer { id: osdTimer; interval: 1500; onTriggered: osd.opacity = 0 }
-    Timer { id: clickPause; interval: Qt.styleHints.mouseDoubleClickInterval; onTriggered: player.togglePause() }
     Connections {
         target: player
         function onPlayingChanged() { win.reveal() }
         function onPlaybackError(message) { win.notify(message, 5000) }
         function onAudioTrackChanged(name) { win.notify(name) }
         function onSubtitleChanged(name) { win.notify(name) }
+        function onCurrentUrlChanged() { win.syncCurrentRow() }
     }
     FileDialog {
         id: picker
@@ -91,20 +95,24 @@ ApplicationWindow {
         folder: section === "Music" ? StandardPaths.writableLocation(StandardPaths.MusicLocation) : StandardPaths.writableLocation(StandardPaths.MoviesLocation)
         showDirs: false
         sortReversed: false
+        caseSensitive: false
+        sortCaseSensitive: false
+        onCountChanged: win.syncCurrentRow()
         nameFilters: {
             const extensions = section === "Music" ? ["mp3", "flac", "m4a", "wav", "ogg"] : ["mp4", "mkv", "mov", "avi", "webm", "m4v"]
-            return extensions.map(ext => searchText ? "*" + searchText + "*." + ext : "*." + ext)
+            const escaped = searchText.replace(/[\[\]*?]/g, "[$&]")
+            return extensions.map(ext => searchText ? "*" + escaped + "*." + ext : "*." + ext)
         }
     }
     Shortcut { sequence: "Space"; onActivated: { win.reveal(); player.togglePause() } }
-    Shortcut { sequence: "Left"; onActivated: { win.reveal(); player.seek(Math.max(0, player.time - 5000)) } }
-    Shortcut { sequence: "Right"; onActivated: { win.reveal(); player.seek(player.time + 5000) } }
-    Shortcut { sequence: "Up"; onActivated: { win.reveal(); player.volume = Math.min(100, player.volume + 5) } }
-    Shortcut { sequence: "Down"; onActivated: { win.reveal(); player.volume = Math.max(0, player.volume - 5) } }
+    Shortcut { sequence: "Left"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) { player.seek(Math.max(0, player.time - 5000)); notify("-5 s · " + fmt(Math.max(0, player.time - 5000)), 800) } }
+    Shortcut { sequence: "Right"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) { player.seek(player.time + 5000); notify("+5 s · " + fmt(player.time + 5000), 800) } }
+    Shortcut { sequence: "Up"; enabled: !fileList.activeFocus && !volumeMouse.activeFocus; onActivated: { player.volume = Math.min(100, player.volume + 5); notify("Volume " + player.volume + "%") } }
+    Shortcut { sequence: "Down"; enabled: !fileList.activeFocus && !volumeMouse.activeFocus; onActivated: { player.volume = Math.max(0, player.volume - 5); notify("Volume " + player.volume + "%") } }
     Shortcut { sequence: "M"; onActivated: { win.reveal(); win.setMuted(!player.muted) } }
     Shortcut { sequence: "F"; onActivated: { win.reveal(); win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen } }
     Shortcut { sequence: "Escape"; onActivated: { win.reveal(); if (searchOpen) { searchText = ""; searchOpen = false } else if (win.visibility === Window.FullScreen) win.visibility = Window.Windowed } }
-    DropArea { anchors.fill: parent; onDropped: if (drop.urls.length) player.open(drop.urls[0]) }
+    DropArea { id: dropArea; anchors.fill: parent; onDropped: if (drop.urls.length) player.open(drop.urls[0]) }
     MouseArea {
         anchors.fill: parent
         z: -1
@@ -140,6 +148,7 @@ ApplicationWindow {
                     tint: "#c8c8c8"
                     tooltip: "Toggle library"
                     accessibleName: "Toggle library"
+                    onActivated: win.libraryOpen = !win.libraryOpen
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.libraryOpen = !win.libraryOpen }
                 }
                 Rectangle { width: 1; height: 20; color: "#383838" }
@@ -156,6 +165,7 @@ ApplicationWindow {
                         closeButton: modelData === "Cancel01"
                         accessibleName: modelData === "Cancel01" ? "Close" : modelData === "MinusSign" ? "Minimize" : modelData === "FullScreen" ? "Fullscreen" : "Maximize"
                         tooltip: accessibleName
+                        onActivated: if (modelData === "Cancel01") win.close(); else if (modelData === "MinusSign") win.showMinimized(); else win.visibility = modelData === "FullScreen" ? (win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen) : (win.visibility === Window.Maximized ? Window.Windowed : Window.Maximized)
                         Layout.preferredWidth: 32
                         Layout.preferredHeight: 32
                         MouseArea {
@@ -207,6 +217,7 @@ ApplicationWindow {
                                 interactive: true
                                 accessibleName: ["Home", "Videos", "Music", "Network", "Playlists", "Recent", "Add"][index]
                                 tooltip: accessibleName
+                                onActivated: if (index === 6) picker.open(); else { win.section = ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index]; win.libraryOpen = true }
                                 tint: (win.section === ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index] || railMouse.containsMouse) ? Theme.accent : Theme.muted
                                 MouseArea {
                                     id: railMouse
@@ -253,11 +264,13 @@ ApplicationWindow {
                             name: "SortArrows"; size: 24; interactive: true
                             tint: files.sortReversed ? Theme.accent : Theme.muted
                             tooltip: "Sort"; accessibleName: "Reverse sort order"
+                            onActivated: files.sortReversed = !files.sortReversed
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: files.sortReversed = !files.sortReversed }
                         }
                         Icon { name: "ListBullets"; size: 24; interactive: false; tint: Theme.muted; tooltip: "Not available yet"; accessibleName: "List view" }
                         Icon {
                             name: "Search01"; size: 24; interactive: true; tooltip: "Search"; accessibleName: "Search files"
+                            onActivated: { win.searchOpen = !win.searchOpen; if (win.searchOpen) searchField.forceActiveFocus(); else win.searchText = "" }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { win.searchOpen = !win.searchOpen; if (win.searchOpen) searchField.forceActiveFocus(); else win.searchText = "" } }
                         }
                     }
@@ -318,8 +331,8 @@ ApplicationWindow {
                                 required property int index
                                 width: fileList.width
                                 height: 44
-                                color: rowMouse.containsMouse ? "#ffffff0d" : "transparent"
-                                border.width: rowFocus.activeFocus ? 1 : 0
+                                color: index === fileList.currentIndex ? "#ffffff12" : rowMouse.containsMouse ? "#ffffff0d" : "transparent"
+                                border.width: index === fileList.currentIndex ? 1 : 0
                                 border.color: Theme.accent
                                 Accessible.role: Accessible.ListItem
                                 Accessible.name: fileName
@@ -356,7 +369,7 @@ ApplicationWindow {
                         Text {
                             anchors.centerIn: parent
                             visible: (section === "Videos" || section === "Music") && files.count === 0
-                            text: section === "Music" ? "No music in Music. Drop files or click Add…" : "No videos in Movies. Drop files or click Add…"
+                            text: searchText ? "No matches for \"" + searchText + "\"" : section === "Music" ? "No music in Music. Drop files or click Add…" : "No videos in Movies. Drop files or click Add…"
                             color: Theme.muted
                             font.pixelSize: 14
                             wrapMode: Text.WordWrap
@@ -375,6 +388,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     anchors.margins: 8
                     color: Theme.video
+                    Rectangle { anchors.fill: parent; anchors.margins: 2; color: "transparent"; border.width: dropArea.containsDrag ? 2 : 0; border.color: Theme.accent }
                     VideoOutput { id: output; anchors.fill: parent; fillMode: VideoOutput.PreserveAspectFit }
                     Text { anchors.centerIn: parent; visible: !player.title || player.title === "Konus"; text: "Drop a video here or click Add"; color: "#a0a0a0"; font.pixelSize: 13 }
                     Rectangle {
@@ -396,8 +410,8 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton
-                        onClicked: clickPause.restart()
-                        onDoubleClicked: { clickPause.stop(); win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen }
+                        onClicked: player.togglePause()
+                        onDoubleClicked: { player.togglePause(); win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen }
                     }
                 }
             }
@@ -416,7 +430,7 @@ ApplicationWindow {
                 spacing: 12
                 RowLayout {
                     spacing: 18
-                    Icon { name: "Previous"; size: 18; interactive: true; accessibleName: "Previous file"; tooltip: "Previous"; Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
+                    Icon { name: "Previous"; size: 18; interactive: true; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
                     Rectangle {
                         Layout.preferredWidth: 56
                         Layout.preferredHeight: 28
@@ -436,7 +450,7 @@ ApplicationWindow {
                             onClicked: if (player.title === "Konus" && files.count) player.open(files.get(0, "fileUrl")); else if (player.title === "Konus") picker.open(); else player.togglePause()
                         }
                     }
-                    Icon { name: "Next"; size: 18; interactive: true; accessibleName: "Next file"; tooltip: "Next"; Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
+                    Icon { name: "Next"; size: 18; interactive: true; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
                 }
                 Text { Layout.preferredWidth: 62; text: fmt(player.time); color: "#9a9a9a"; font.pixelSize: 14 }
                 Item {
@@ -448,23 +462,33 @@ ApplicationWindow {
                     property real dragProgress: progress
                     Accessible.role: Accessible.Slider
                     Accessible.name: "Playback position"
+                    Accessible.description: win.fmt(player.time) + " of " + win.fmt(player.length)
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 3
                         color: "#0b0b0b"
                         radius: 4
-                        Rectangle { width: parent.width * (seekBarMouse.pressed ? seekBar.dragProgress : seekBar.progress); height: parent.height; color: Theme.seekFill; radius: 4 }
+                        Rectangle { width: parent.width * (seekBarMouse.pressed ? seekBar.dragProgress : win.seekDisplay >= 0 ? win.seekDisplay : seekBar.progress); height: parent.height; color: Theme.seekFill; radius: 4 }
                     }
-                    Rectangle { x: 3 + (parent.width - 14) * (seekBarMouse.pressed ? seekBar.dragProgress : seekBar.progress); y: 3; width: 8; height: 24; color: Theme.accent; radius: 3 }
+                    Rectangle { x: 3 + (parent.width - 14) * (seekBarMouse.pressed ? seekBar.dragProgress : win.seekDisplay >= 0 ? win.seekDisplay : seekBar.progress); y: 3; width: 8; height: 24; color: Theme.accent; radius: 3 }
                     MouseArea {
                         id: seekBarMouse
                         anchors.fill: parent
                         enabled: player.length > 0
                         cursorShape: Qt.PointingHandCursor
-                        onPressed: { win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 3) / (width - 6))) }
-                        onPositionChanged: if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 3) / (width - 6)))
-                        onReleased: { player.seek(player.length * seekBar.dragProgress); win.seekPressed = false; idle.restart() }
+                        hoverEnabled: true
+                        activeFocusOnTab: true
+                        Accessible.onIncreaseAction: player.seek(Math.min(player.length, player.time + 5000))
+                        Accessible.onDecreaseAction: player.seek(Math.max(0, player.time - 5000))
+                        Keys.onLeftPressed: player.seek(Math.max(0, player.time - 5000))
+                        Keys.onRightPressed: player.seek(player.time + 5000)
+                        onPressed: { forceActiveFocus(); win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 7) / (width - 14))) }
+                        onPositionChanged: if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 7) / (width - 14)))
+                        onReleased: { player.seek(player.length * seekBar.dragProgress); win.seekDisplay = seekBar.dragProgress; seekRelease.restart(); win.seekPressed = false; idle.restart() }
+                        ToolTip.visible: containsMouse && player.length > 0
+                        ToolTip.text: win.fmt(player.length * Math.max(0, Math.min(1, (mouseX - 7) / (width - 14))))
                     }
+                    Timer { id: seekRelease; interval: 300; onTriggered: win.seekDisplay = -1 }
                 }
                 Text { text: fmt(player.length); color: "#9a9a9a"; font.pixelSize: 14 }
                 RowLayout {
@@ -477,11 +501,13 @@ ApplicationWindow {
                         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.setMuted(!player.muted); onWheel: win.wheelVolume(wheel.angleDelta.y) }
                     }
                     Item {
+                        id: volumeBar
                         Layout.preferredWidth: 93
                         Layout.preferredHeight: 29
                         Layout.leftMargin: -8
                         Accessible.role: Accessible.Slider
                         Accessible.name: "Volume"
+                        Accessible.description: player.volume + "%"
                         Canvas {
                             anchors.fill: parent
                             property real level: player.volume / 100
@@ -494,8 +520,14 @@ ApplicationWindow {
                             }
                         }
                         MouseArea {
+                            id: volumeMouse
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            activeFocusOnTab: true
+                            Accessible.onIncreaseAction: player.volume = Math.min(100, player.volume + 5)
+                            Accessible.onDecreaseAction: player.volume = Math.max(0, player.volume - 5)
+                            Keys.onLeftPressed: { player.volume = Math.max(0, player.volume - 5); win.notify("Volume " + player.volume + "%") }
+                            Keys.onRightPressed: { player.volume = Math.min(100, player.volume + 5); win.notify("Volume " + player.volume + "%") }
                             onPressed: { win.volumePressed = true; setLevel(mouse.x) }
                             onPositionChanged: if (pressed) setLevel(mouse.x)
                             onReleased: { win.volumePressed = false; idle.restart() }
@@ -503,10 +535,10 @@ ApplicationWindow {
                             function setLevel(x) { player.volume = Math.round(100 * Math.max(0, Math.min(1, x / width))) }
                         }
                     }
-                    Icon { name: "AudioWave01"; size: 24; interactive: true; accessibleName: "Audio track"; tooltip: "Audio track"; Layout.preferredWidth: 32; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleAudioTrack() } }
-                    Icon { name: "Subtitle"; size: 24; interactive: true; accessibleName: "Subtitles"; tooltip: "Subtitles"; Layout.preferredWidth: 32; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleSubtitle() } }
+                    Icon { name: "AudioWave01"; size: 24; interactive: true; accessibleName: "Audio track"; tooltip: "Audio track"; onActivated: player.cycleAudioTrack(); Layout.preferredWidth: 32; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleAudioTrack() } }
+                    Icon { name: "Subtitle"; size: 24; interactive: true; accessibleName: "Subtitles"; tooltip: "Subtitles"; onActivated: player.cycleSubtitle(); Layout.preferredWidth: 32; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleSubtitle() } }
                     Icon { name: "SettingsPlay"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "Settings"; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
-                    Icon { name: "ListBullets"; size: 24; interactive: true; tooltip: "Library"; accessibleName: "Toggle library"; Layout.preferredWidth: 32; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.libraryOpen = !win.libraryOpen } }
+                    Icon { name: "ListBullets"; size: 24; interactive: true; tooltip: "Library"; accessibleName: "Toggle library"; onActivated: win.libraryOpen = !win.libraryOpen; Layout.preferredWidth: 32; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.libraryOpen = !win.libraryOpen } }
                 }
             }
         }

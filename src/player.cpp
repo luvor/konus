@@ -16,6 +16,7 @@ namespace {
 struct VideoBuffer {
     Player *player;
     unsigned width, height, pitch;
+    std::uint64_t generation;
     void *pixels;
     ~VideoBuffer() { qFreeAligned(pixels); }
 };
@@ -49,10 +50,16 @@ void Player::event(const libvlc_event_t *e, void *data) {
     auto *self = static_cast<Player *>(data);
     self->post([self, type=e->type] {
         if (type == libvlc_MediaPlayerPlaying) {
-            if (!self->m_pendingTitle.isEmpty() && self->m_title != self->m_pendingTitle) { self->m_title = self->m_pendingTitle; emit self->titleChanged(); }
+            if (self->m_pendingUrl.isValid()) {
+                self->m_currentUrl = self->m_pendingUrl; emit self->currentUrlChanged();
+                if (!self->m_pendingTitle.isEmpty() && self->m_title != self->m_pendingTitle) { self->m_title = self->m_pendingTitle; emit self->titleChanged(); }
+            }
+            self->m_pendingUrl.clear();
             self->m_pendingTitle.clear();
         } else if (type == libvlc_MediaPlayerEncounteredError) {
-            emit self->playbackError(QStringLiteral("Can't play %1").arg(self->m_pendingTitle));
+            const QString name = self->m_pendingUrl.isValid() ? self->m_pendingUrl.fileName() : self->m_currentUrl.fileName();
+            emit self->playbackError(QStringLiteral("Can't play %1").arg(name));
+            self->m_pendingUrl.clear();
             self->m_pendingTitle.clear();
         }
         if (type == libvlc_MediaPlayerPlaying || type == libvlc_MediaPlayerPaused || type == libvlc_MediaPlayerStopped || type == libvlc_MediaPlayerEndReached) emit self->playingChanged();
@@ -61,11 +68,25 @@ void Player::event(const libvlc_event_t *e, void *data) {
 }
 unsigned Player::setup(void **opaque, char *chroma, unsigned *w, unsigned *h, unsigned *pitches, unsigned *lines) {
     if (!*w || !*h || *w > (INT_MAX - 31u) / 4 || *h > INT_MAX - 31u) return 0;
+    auto *self = static_cast<Player *>(*opaque);
+    libvlc_media_t *media = self->m_player ? libvlc_media_player_get_media(self->m_player) : nullptr;
+    if (media) {
+        libvlc_media_track_t **tracks = nullptr;
+        const unsigned count = libvlc_media_tracks_get(media, &tracks);
+        for (unsigned i = 0; i < count; ++i) {
+            if (tracks[i]->i_type == libvlc_track_video && tracks[i]->video && tracks[i]->video->i_sar_num && tracks[i]->video->i_sar_den) {
+                const std::uint64_t scaled = std::uint64_t(*w) * tracks[i]->video->i_sar_num / tracks[i]->video->i_sar_den;
+                if (scaled && scaled <= (INT_MAX - 31u) / 4) *w = unsigned(scaled);
+                break;
+            }
+        }
+        if (tracks) libvlc_media_tracks_release(tracks, count);
+    }
     const unsigned pitch = (*w * 4 + 31) & ~31u, rows = (*h + 31) & ~31u;
     if (rows > std::numeric_limits<size_t>::max() / pitch) return 0;
     void *pixels = qMallocAligned(size_t(pitch) * rows, 32);
     if (!pixels) return 0;
-    auto *buffer = new (std::nothrow) VideoBuffer{static_cast<Player *>(*opaque), *w, *h, pitch, pixels};
+    auto *buffer = new (std::nothrow) VideoBuffer{self, *w, *h, pitch, self->m_generation.load(), pixels};
     if (!buffer) { qFreeAligned(pixels); return 0; }
     std::memcpy(chroma, "RV32", 4);
     *opaque = buffer;
@@ -81,7 +102,6 @@ void Player::unlock(void *data, void *picture, void *const *) {
     Q_UNUSED(data); Q_UNUSED(picture);
 }
 void Player::display(void *data, void *picture) {
-    Q_UNUSED(data);
     auto *buffer = static_cast<VideoBuffer *>(picture);
     auto *self = buffer->player;
     // shortcut: keep one pending GUI frame; use a bounded timestamp queue if frame-accurate output is needed.
@@ -93,11 +113,12 @@ void Player::display(void *data, void *picture) {
         std::memcpy(frame.bits(0) + size_t(y) * frame.bytesPerLine(0),
                     static_cast<const char *>(buffer->pixels) + size_t(y) * buffer->pitch, size_t(buffer->width) * 4);
     frame.unmap();
-    self->post([self, frame] { if (self->m_sink) self->m_sink->setVideoFrame(frame); self->m_framePending = false; });
+    const auto generation = buffer->generation;
+    self->post([self, frame, generation] { if (generation == self->m_generation.load() && self->m_sink) self->m_sink->setVideoFrame(frame); self->m_framePending = false; });
 }
 void Player::open(const QUrl &url) {
     if (!m_instance || !m_player || !url.isValid()) {
-        emit playbackError(QStringLiteral("Can't open this media"));
+        emit playbackError(QStringLiteral("Can't open %1").arg(url.fileName()));
         return;
     }
     libvlc_media_t *media = url.isLocalFile() ? libvlc_media_new_path(m_instance, url.toLocalFile().toUtf8().constData()) : libvlc_media_new_location(m_instance, url.toString().toUtf8().constData());
@@ -105,12 +126,16 @@ void Player::open(const QUrl &url) {
         emit playbackError(QStringLiteral("Can't open %1").arg(url.fileName()));
         return;
     }
-    libvlc_media_player_set_media(m_player, media); libvlc_media_release(media);
     const QString name = url.isLocalFile() ? QFileInfo(url.toLocalFile()).fileName() : url.fileName();
-    if (m_currentUrl != url) { m_currentUrl = url; emit currentUrlChanged(); }
+    ++m_generation;
+    m_framePending = false;
+    if (m_sink) m_sink->setVideoFrame(QVideoFrame());
+    m_pendingUrl = url;
     m_pendingTitle = name;
+    libvlc_media_player_set_media(m_player, media); libvlc_media_release(media);
     if (libvlc_media_player_play(m_player) != 0) {
         emit playbackError(QStringLiteral("Can't play %1").arg(name));
+        m_pendingUrl.clear();
         m_pendingTitle.clear();
     }
 }

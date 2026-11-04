@@ -5,6 +5,7 @@
 #include <QVideoSink>
 #include <vlc/vlc.h>
 #include <atomic>
+#include <cstdint>
 
 class Player final : public QObject {
     Q_OBJECT
@@ -62,4 +63,6 @@ private:
     QString m_title{QStringLiteral("Konus")};
     QString m_pendingTitle;
     QUrl m_currentUrl;
+    QUrl m_pendingUrl;
+    std::atomic<std::uint64_t> m_generation{0};
 };
