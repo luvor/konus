@@ -5,7 +5,7 @@ Item {
     id: icon
     property string name
     property int size: 18
-    property color tint: "#9a9a9a"
+    property color tint: "#8f8f8f"
     property color hoverTint: Qt.lighter(tint, 1.3)
     property bool interactive: false
     property bool closeButton: false

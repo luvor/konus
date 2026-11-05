@@ -139,29 +139,32 @@ ApplicationWindow {
                 anchors.leftMargin: 16
                 anchors.rightMargin: 9
                 spacing: 17
-                Image { source: "qrc:/konus/assets/icons/cone.svg"; sourceSize: Qt.size(18, 22); Layout.preferredWidth: 18; Layout.preferredHeight: 22 }
+                Image { source: "image://icons/cone/d37918"; sourceSize: Qt.size(22, 26); width: 22; height: 26; x: -2; Layout.preferredWidth: 18; Layout.preferredHeight: 22 }
                 Icon { name: "MoreHorizontal"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "More options" }
                 Icon {
                     id: sidebarIcon
                     name: win.libraryOpen ? "SidebarLeft" : "SidebarLeftOutline"
                     size: 24
                     interactive: true
-                    tint: "#c8c8c8"
+                    tint: "#8f8f8f"
                     tooltip: "Toggle library"
                     accessibleName: "Toggle library"
                     onActivated: win.libraryOpen = !win.libraryOpen
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.libraryOpen = !win.libraryOpen }
                 }
                 Rectangle { width: 2; height: 20; color: "#303030" }
-                RowLayout { spacing: 6; Icon { name: "Folder01"; size: 24; interactive: false } Text { text: section; color: "#9a9a9a"; font.pixelSize: 14 } }
+                RowLayout { spacing: 6; Icon { name: "Folder01"; size: 24; interactive: false } Text { text: section; color: "#8f8f8f"; font.pixelSize: 14 } }
                 Item { Layout.fillWidth: true }
                 Item { Layout.fillWidth: true }
-                Repeater {
+                RowLayout {
+                    spacing: 4
+                    Repeater {
                     model: ["MinusSign", "Maximize01", "FullScreen", "Cancel01"]
                     delegate: Icon {
                         required property string modelData
                         name: modelData === "Maximize01" && win.visibility === Window.Maximized ? "Restore" : modelData
-                        size: 20
+                        size: 18
+                        tint: modelData === "MinusSign" ? "#727272" : "#8f8f8f"
                         interactive: true
                         closeButton: modelData === "Cancel01"
                         accessibleName: modelData === "Cancel01" ? "Close" : modelData === "MinusSign" ? "Minimize" : modelData === "FullScreen" ? "Fullscreen" : "Maximize"
@@ -175,9 +178,10 @@ ApplicationWindow {
                             onClicked: if (modelData === "Cancel01") win.close(); else if (modelData === "MinusSign") win.showMinimized(); else win.visibility = modelData === "FullScreen" ? (win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen) : (win.visibility === Window.Maximized ? Window.Windowed : Window.Maximized)
                         }
                     }
+                    }
                 }
             }
-            Text { anchors.centerIn: parent; width: Math.min(300, parent.width - 600); text: player.title; color: "#9a9a9a"; font.pixelSize: 13; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+            Text { anchors.centerIn: parent; width: Math.min(300, parent.width - 600); text: player.title; color: "#8f8f8f"; font.pixelSize: 13; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
             MouseArea {
                 anchors.fill: parent
                 z: -1
@@ -219,7 +223,7 @@ ApplicationWindow {
                                 accessibleName: ["Home", "Videos", "Music", "Network", "Playlists", "Recent", "Add"][index]
                                 tooltip: accessibleName
                                 onActivated: if (index === 6) picker.open(); else { win.section = ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index]; win.libraryOpen = true }
-                                tint: (win.section === ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index] || railMouse.containsMouse) ? Theme.accent : Theme.muted
+                                tint: (win.section === ["Home", "Videos", "Music", "Network", "Playlists"][index] || railMouse.containsMouse) ? Theme.accent : (index >= 5 ? "#727272" : "#8f8f8f")
                                 MouseArea {
                                     id: railMouse
                                     anchors.fill: parent
@@ -252,10 +256,10 @@ ApplicationWindow {
                         spacing: 16
                         Icon { name: "ArrowLeftStem"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "Back" }
                         Icon { name: "ArrowRightStem"; size: 24; interactive: false; tint: "#555555"; tooltip: "Not available yet"; accessibleName: "Forward" }
-                        Text { text: section; color: "#a6a6a6"; font.pixelSize: 15 }
+                        Text { Layout.leftMargin: -9; text: section; color: "#8f8f8f"; font.pixelSize: 16 }
                         Item { Layout.fillWidth: true }
-                        Icon { name: "MoreHorizontal"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "More options" }
-                        Icon { name: "LinkSquare01"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "Pop out" }
+                        Icon { name: "MoreHorizontal"; size: 24; interactive: false; tint: "#9a9a9a"; tooltip: "Not available yet"; accessibleName: "More options" }
+                        Icon { name: "LinkSquare01"; size: 24; interactive: false; tint: "#9a9a9a"; tooltip: "Not available yet"; accessibleName: "Pop out" }
                     }
                     RowLayout {
                         Layout.fillWidth: true
@@ -265,15 +269,14 @@ ApplicationWindow {
                         Text { text: files.count === 1 ? "1 item" : files.count + " items"; color: Theme.muted; font.pixelSize: 14; visible: section === "Videos" || section === "Music" }
                         Item { Layout.fillWidth: true }
                         Icon {
-                            name: "SortArrows"; size: 24; interactive: true
-                            tint: files.sortReversed ? Theme.accent : Theme.muted
+                            name: "SortArrows"; size: 24; interactive: true; tint: "#9a9a9a"; Layout.leftMargin: 4
                             tooltip: "Sort"; accessibleName: "Reverse sort order"
                             onActivated: files.sortReversed = !files.sortReversed
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: files.sortReversed = !files.sortReversed }
                         }
-                        Icon { name: "ListBullets"; size: 24; interactive: false; tint: Theme.muted; tooltip: "Not available yet"; accessibleName: "List view" }
+                        Icon { name: "ListBullets"; size: 26; interactive: false; tint: "#9a9a9a"; tooltip: "Not available yet"; accessibleName: "List view" }
                         Icon {
-                            name: "Search01"; size: 24; interactive: true; tooltip: "Search"; accessibleName: "Search files"
+                            name: "Search01"; size: 24; interactive: true; tint: "#9a9a9a"; tooltip: "Search"; accessibleName: "Search files"
                             onActivated: { win.searchOpen = !win.searchOpen; if (win.searchOpen) searchField.forceActiveFocus(); else win.searchText = "" }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { win.searchOpen = !win.searchOpen; if (win.searchOpen) searchField.forceActiveFocus(); else win.searchText = "" } }
                         }
@@ -291,7 +294,7 @@ ApplicationWindow {
                         Keys.onEscapePressed: { win.searchText = ""; text = ""; win.searchOpen = false }
                         background: Rectangle { color: "#202020"; radius: 3; border.color: "#444444" }
                     }
-                    Rectangle { Layout.fillWidth: true; height: 2; Layout.topMargin: 8; color: "#191919" }
+                    Rectangle { Layout.fillWidth: true; height: 2; Layout.topMargin: 4; color: "#191919" }
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
@@ -335,8 +338,8 @@ ApplicationWindow {
                                 required property int index
                                 width: fileList.width
                                 height: 42
-                                color: index === fileList.currentIndex ? "#12ffffff" : rowMouse.containsMouse ? "#0dffffff" : "transparent"
-                                border.width: index === fileList.currentIndex ? 1 : 0
+                                color: rowMouse.containsMouse && index !== fileList.currentIndex ? "#0dffffff" : "transparent"
+                                border.width: fileList.activeFocus && index === fileList.currentIndex ? 1 : 0
                                 border.color: Theme.accent
                                 Accessible.role: Accessible.ListItem
                                 Accessible.name: fileName
@@ -344,7 +347,7 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     anchors.leftMargin: 7
                                     spacing: 18
-                                    Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; size: 18; interactive: false; tint: Theme.muted }
+                                    Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; size: 18; interactive: false; tint: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : Theme.muted }
                                     Text { Layout.fillWidth: true; text: fileName; color: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#969696"; font.pixelSize: 14; elide: Text.ElideRight }
                                 }
                                 MouseArea {
@@ -424,7 +427,7 @@ ApplicationWindow {
                 spacing: 12
                 RowLayout {
                     spacing: 10
-                    Icon { name: "Previous"; size: 18; interactive: true; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
+                    Icon { name: "Previous"; size: 18; interactive: true; tint: "#9a9a9a"; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
                     Rectangle {
                         Layout.preferredWidth: 56
                         Layout.preferredHeight: 28
@@ -444,7 +447,7 @@ ApplicationWindow {
                             onClicked: if (player.title === "Konus" && files.count) player.open(files.get(0, "fileUrl")); else if (player.title === "Konus") picker.open(); else player.togglePause()
                         }
                     }
-                    Icon { name: "Next"; size: 18; interactive: true; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
+                    Icon { name: "Next"; size: 18; interactive: true; tint: "#9a9a9a"; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
                 }
                 Text { Layout.preferredWidth: 84; Layout.leftMargin: 21; text: fmt(player.time); color: Theme.text; font.pixelSize: 14 }
                 Item {
@@ -489,7 +492,7 @@ ApplicationWindow {
                 RowLayout {
                     spacing: 12
                     Icon {
-                        name: player.muted ? "VolumeOff" : "VolumeLow"; size: 24; interactive: true
+                        name: player.muted ? "VolumeOff" : "VolumeLow"; size: 25; interactive: true; tint: "#9a9a9a"
                         accessibleName: player.muted ? "Unmute" : "Mute"; tooltip: accessibleName
                         Accessible.role: Accessible.Button
                         Layout.preferredWidth: 32; Layout.preferredHeight: 32
