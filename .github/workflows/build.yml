@@ -50,6 +50,8 @@ jobs:
           mkdir -p build/konus.app/Contents/Frameworks build/konus.app/Contents/PlugIns/vlc
           cp -L /Applications/VLC.app/Contents/MacOS/lib/libvlc*.dylib build/konus.app/Contents/Frameworks/
           cp -R /Applications/VLC.app/Contents/MacOS/plugins/. build/konus.app/Contents/PlugIns/vlc/
+          # re-signing changes plugin mtimes, so VLC's plugins.dat would be stale on every launch
+          rm -f build/konus.app/Contents/PlugIns/vlc/plugins.dat
           ditto LICENSE build/konus.app/Contents/Resources/LICENSE
           ditto NOTICE build/konus.app/Contents/Resources/NOTICE
           ditto LICENSES build/konus.app/Contents/Resources/LICENSES
