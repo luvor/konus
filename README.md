@@ -9,7 +9,7 @@ Konus is an open-source desktop video player built with Qt 6 QML and libVLC 3, b
 Download a packaged build from this repository's [Releases page](../../releases).
 Development builds are also attached to successful GitHub Actions runs.
 
-- **macOS:** extract `konus-macos.zip` and open `konus.app`. The app is ad-hoc
+- **macOS** (Apple silicon, macOS 14.4+): extract `konus-macos.zip` and open `konus.app`. The app is ad-hoc
   signed and is not notarized. On macOS 14 and earlier, right-click the app and
   choose **Open**. On macOS 15 and later, first try opening it, then use
   **System Settings → Privacy & Security → Open Anyway** if blocked

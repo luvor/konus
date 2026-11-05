@@ -8,7 +8,8 @@ permissions:
 jobs:
   build:
     env:
-      QT_VERSION: '6.8.3'
+      # Qt 6.8.3 links the AGL framework, which the current macOS SDK no longer ships
+      QT_VERSION: ${{ matrix.os == 'macos-latest' && '6.12.0' || '6.8.3' }}
     strategy:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-22.04]
