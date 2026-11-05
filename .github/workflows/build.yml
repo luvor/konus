@@ -69,7 +69,10 @@ jobs:
           vlc_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/VLC.app/Contents/Info.plist)
           printf 'Qt %s\nCorresponding source: https://download.qt.io/archive/qt/%s/%s/single/qt-everywhere-src-%s.tar.xz\n\nlibVLC and VLC plugins %s\nCorresponding source: https://download.videolan.org/pub/videolan/vlc/%s/\n' "$qt_version" "$qt_series" "$qt_version" "$qt_version" "$vlc_version" "$vlc_version" > build/konus.app/Contents/Resources/THIRD-PARTY-SOURCES.txt
           codesign --force --deep -s - build/konus.app
-          cd build && zip -r ../konus-macos.zip konus.app
+          # ditto keeps framework symlinks; zip -r would duplicate them and break the signature
+          ditto -c -k --sequesterRsrc --keepParent build/konus.app konus-macos.zip
+          rm -rf "$RUNNER_TEMP/zipcheck" && ditto -x -k konus-macos.zip "$RUNNER_TEMP/zipcheck"
+          codesign --verify --deep --strict "$RUNNER_TEMP/zipcheck/konus.app"
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh
