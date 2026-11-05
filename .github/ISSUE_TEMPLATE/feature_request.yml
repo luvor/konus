@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement to Konus
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like to do?
+      description: Describe the problem or use case.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Describe the feature you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      description: Screenshots or examples are welcome.
