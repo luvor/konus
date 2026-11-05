@@ -81,6 +81,7 @@ unsigned Player::setup(void **opaque, char *chroma, unsigned *w, unsigned *h, un
             }
         }
         if (tracks) libvlc_media_tracks_release(tracks, count);
+        libvlc_media_release(media);
     }
     const unsigned pitch = (*w * 4 + 31) & ~31u, rows = (*h + 31) & ~31u;
     if (rows > std::numeric_limits<size_t>::max() / pitch) return 0;

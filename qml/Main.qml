@@ -125,12 +125,13 @@ ApplicationWindow {
     }
     ColumnLayout {
         anchors.fill: parent
+        anchors.margins: win.showChrome ? 0 : 10
         spacing: 0
         Rectangle {
             id: titlebar
             Layout.fillWidth: true
             Layout.preferredHeight: 40
-            color: Theme.rail
+            color: Theme.window
             visible: win.showChrome
             HoverHandler { id: titleHover }
             RowLayout {
@@ -138,7 +139,7 @@ ApplicationWindow {
                 anchors.leftMargin: 16
                 anchors.rightMargin: 9
                 spacing: 17
-                Image { source: "qrc:/konus/assets/icons/cone.svg"; sourceSize: Qt.size(20, 23); Layout.preferredWidth: 20; Layout.preferredHeight: 23 }
+                Image { source: "qrc:/konus/assets/icons/cone.svg"; sourceSize: Qt.size(18, 22); Layout.preferredWidth: 18; Layout.preferredHeight: 22 }
                 Icon { name: "MoreHorizontal"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "More options" }
                 Icon {
                     id: sidebarIcon
@@ -151,7 +152,7 @@ ApplicationWindow {
                     onActivated: win.libraryOpen = !win.libraryOpen
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.libraryOpen = !win.libraryOpen }
                 }
-                Rectangle { width: 1; height: 20; color: "#383838" }
+                Rectangle { width: 2; height: 20; color: "#303030" }
                 RowLayout { spacing: 6; Icon { name: "Folder01"; size: 24; interactive: false } Text { text: section; color: "#9a9a9a"; font.pixelSize: 14 } }
                 Item { Layout.fillWidth: true }
                 Item { Layout.fillWidth: true }
@@ -195,13 +196,13 @@ ApplicationWindow {
                 id: rail
                 visible: win.showChrome
                 Layout.fillHeight: true
-                Layout.preferredWidth: visible ? 52 : 0
+                Layout.preferredWidth: visible ? 50 : 0
                 color: Theme.rail
                 HoverHandler { id: railHover }
                 Column {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
-                    anchors.topMargin: 3
+                            anchors.topMargin: 2
                     spacing: 0
                     Repeater {
                         model: ["Home01", "PlaySquare", "FolderMusic", "Broadcast", "Playlist01", "RecentClock", "Add01"]
@@ -209,7 +210,7 @@ ApplicationWindow {
                             required property string modelData
                             required property int index
                             width: 52
-                            height: 49
+                            height: 46
                             Icon {
                                 anchors.centerIn: parent
                                 name: modelData
@@ -235,16 +236,19 @@ ApplicationWindow {
                 id: libpanel
                 visible: win.showChrome && win.libraryOpen
                 Layout.fillHeight: true
-                Layout.preferredWidth: visible ? Theme.panelWidth : 0
+                    Layout.preferredWidth: visible ? Theme.panelWidth : 0
                 color: Theme.panel
                 HoverHandler { id: panelHover }
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 20
+                    anchors.leftMargin: 20
+                    anchors.rightMargin: 20
+                    anchors.topMargin: 16
+                    anchors.bottomMargin: 20
                     spacing: 0
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 34
+                        Layout.preferredHeight: 32
                         spacing: 16
                         Icon { name: "ArrowLeftStem"; size: 24; interactive: false; tooltip: "Not available yet"; accessibleName: "Back" }
                         Icon { name: "ArrowRightStem"; size: 24; interactive: false; tint: "#555555"; tooltip: "Not available yet"; accessibleName: "Forward" }
@@ -256,7 +260,7 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 36
-                        Layout.topMargin: 9
+                        Layout.topMargin: 8
                         spacing: 12
                         Text { text: files.count === 1 ? "1 item" : files.count + " items"; color: Theme.muted; font.pixelSize: 14; visible: section === "Videos" || section === "Music" }
                         Item { Layout.fillWidth: true }
@@ -287,7 +291,7 @@ ApplicationWindow {
                         Keys.onEscapePressed: { win.searchText = ""; text = ""; win.searchOpen = false }
                         background: Rectangle { color: "#202020"; radius: 3; border.color: "#444444" }
                     }
-                    Rectangle { Layout.fillWidth: true; height: 1; Layout.topMargin: 14; color: "#262626" }
+                    Rectangle { Layout.fillWidth: true; height: 2; Layout.topMargin: 8; color: "#191919" }
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
@@ -330,8 +334,8 @@ ApplicationWindow {
                                 required property url fileUrl
                                 required property int index
                                 width: fileList.width
-                                height: 44
-                                color: index === fileList.currentIndex ? "#ffffff12" : rowMouse.containsMouse ? "#ffffff0d" : "transparent"
+                                height: 42
+                                color: index === fileList.currentIndex ? "#12ffffff" : rowMouse.containsMouse ? "#0dffffff" : "transparent"
                                 border.width: index === fileList.currentIndex ? 1 : 0
                                 border.color: Theme.accent
                                 Accessible.role: Accessible.ListItem
@@ -341,24 +345,14 @@ ApplicationWindow {
                                     anchors.leftMargin: 7
                                     spacing: 18
                                     Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; size: 18; interactive: false; tint: Theme.muted }
-                                    Text { Layout.fillWidth: true; text: fileName; color: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#b3b3b3"; font.pixelSize: 14; elide: Text.ElideRight }
-                                }
-                                FocusScope {
-                                    id: rowFocus
-                                    anchors.fill: parent
-                                    focus: rowMouse.activeFocus
-                                    activeFocusOnTab: true
-                                    Keys.onUpPressed: fileList.decrementCurrentIndex()
-                                    Keys.onDownPressed: fileList.incrementCurrentIndex()
-                                    Keys.onReturnPressed: player.open(fileUrl)
-                                    Keys.onEnterPressed: player.open(fileUrl)
+                                    Text { Layout.fillWidth: true; text: fileName; color: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#969696"; font.pixelSize: 14; elide: Text.ElideRight }
                                 }
                                 MouseArea {
                                     id: rowMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: { fileList.currentIndex = index; rowFocus.forceActiveFocus(); player.open(fileUrl) }
+                                    onClicked: { fileList.currentIndex = index; fileList.forceActiveFocus(); player.open(fileUrl) }
                                 }
                             }
                             Keys.onUpPressed: decrementCurrentIndex()
@@ -383,10 +377,10 @@ ApplicationWindow {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.rightMargin: win.showChrome ? 10 : 0
                 color: Theme.video
-                Rectangle {
+                            Rectangle {
                     anchors.fill: parent
-                    anchors.margins: 8
                     color: Theme.video
                     Rectangle { anchors.fill: parent; anchors.margins: 2; color: "transparent"; border.width: dropArea.containsDrag ? 2 : 0; border.color: Theme.accent }
                     VideoOutput { id: output; anchors.fill: parent; fillMode: VideoOutput.PreserveAspectFit }
@@ -419,17 +413,17 @@ ApplicationWindow {
         Rectangle {
             id: controlbar
             Layout.fillWidth: true
-            Layout.preferredHeight: 56
+            Layout.preferredHeight: 55
             color: Theme.control
             visible: win.showChrome
             HoverHandler { id: controlsHover }
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 28
-                anchors.rightMargin: 24
+                anchors.rightMargin: 18
                 spacing: 12
                 RowLayout {
-                    spacing: 18
+                    spacing: 10
                     Icon { name: "Previous"; size: 18; interactive: true; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
                     Rectangle {
                         Layout.preferredWidth: 56
@@ -452,7 +446,7 @@ ApplicationWindow {
                     }
                     Icon { name: "Next"; size: 18; interactive: true; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); Layout.preferredWidth: 20; Layout.preferredHeight: 32; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
                 }
-                Text { Layout.preferredWidth: 62; text: fmt(player.time); color: "#9a9a9a"; font.pixelSize: 14 }
+                Text { Layout.preferredWidth: 84; Layout.leftMargin: 21; text: fmt(player.time); color: Theme.text; font.pixelSize: 14 }
                 Item {
                     id: seekBar
                     Layout.fillWidth: true
@@ -480,8 +474,9 @@ ApplicationWindow {
                         activeFocusOnTab: true
                         Accessible.onIncreaseAction: player.seek(Math.min(player.length, player.time + 5000))
                         Accessible.onDecreaseAction: player.seek(Math.max(0, player.time - 5000))
-                        Keys.onLeftPressed: player.seek(Math.max(0, player.time - 5000))
-                        Keys.onRightPressed: player.seek(player.time + 5000)
+                        Keys.onShortcutOverride: if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true
+                        Keys.onLeftPressed: { player.seek(Math.max(0, player.time - 5000)); event.accepted = true }
+                        Keys.onRightPressed: { player.seek(player.time + 5000); event.accepted = true }
                         onPressed: { forceActiveFocus(); win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 7) / (width - 14))) }
                         onPositionChanged: if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 7) / (width - 14)))
                         onReleased: { player.seek(player.length * seekBar.dragProgress); win.seekDisplay = seekBar.dragProgress; seekRelease.restart(); win.seekPressed = false; idle.restart() }
@@ -502,8 +497,8 @@ ApplicationWindow {
                     }
                     Item {
                         id: volumeBar
-                        Layout.preferredWidth: 93
-                        Layout.preferredHeight: 29
+                        Layout.preferredWidth: 89
+                        Layout.preferredHeight: 28
                         Layout.leftMargin: -8
                         Accessible.role: Accessible.Slider
                         Accessible.name: "Volume"
@@ -526,8 +521,9 @@ ApplicationWindow {
                             activeFocusOnTab: true
                             Accessible.onIncreaseAction: player.volume = Math.min(100, player.volume + 5)
                             Accessible.onDecreaseAction: player.volume = Math.max(0, player.volume - 5)
-                            Keys.onLeftPressed: { player.volume = Math.max(0, player.volume - 5); win.notify("Volume " + player.volume + "%") }
-                            Keys.onRightPressed: { player.volume = Math.min(100, player.volume + 5); win.notify("Volume " + player.volume + "%") }
+                            Keys.onShortcutOverride: if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true
+                            Keys.onLeftPressed: { player.volume = Math.max(0, player.volume - 5); win.notify("Volume " + player.volume + "%"); event.accepted = true }
+                            Keys.onRightPressed: { player.volume = Math.min(100, player.volume + 5); win.notify("Volume " + player.volume + "%"); event.accepted = true }
                             onPressed: { win.volumePressed = true; setLevel(mouse.x) }
                             onPositionChanged: if (pressed) setLevel(mouse.x)
                             onReleased: { win.volumePressed = false; idle.restart() }

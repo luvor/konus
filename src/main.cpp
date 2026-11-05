@@ -6,6 +6,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QCursor>
 #include <QTimer>
 #include <QQuickStyle>
 #include <QQuickImageProvider>
@@ -53,6 +54,13 @@ int main(int argc, char *argv[]) {
     engine.loadFromModule("Konus", "Main");
     if (engine.rootObjects().isEmpty()) return 1;
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    const QString windowSize = qEnvironmentVariable("KONUS_WINDOW_SIZE");
+    const auto dimensions = windowSize.split('x');
+    if (dimensions.size() == 2) {
+        bool widthOk = false, heightOk = false;
+        const int width = dimensions[0].toInt(&widthOk), height = dimensions[1].toInt(&heightOk);
+        if (widthOk && heightOk && width > 0 && height > 0) window->resize(width, height);
+    }
     if (argc > 1) player.open(QUrl::fromUserInput(QString::fromLocal8Bit(argv[1])));
     const QString grab = qEnvironmentVariable("KONUS_GRAB");
     if (!grab.isEmpty()) QTimer::singleShot(3000, window, [window, grab, &app] {
@@ -61,6 +69,7 @@ int main(int argc, char *argv[]) {
             if (!window->grabWindow().save(grab, "PNG")) { app.exit(2); return; }
             const QString hidden = qEnvironmentVariable("KONUS_GRAB_HIDDEN");
             if (hidden.isEmpty()) { app.exit(0); return; }
+            QCursor::setPos(window->mapToGlobal(QPoint(window->width() / 2, window->height() / 2)));
             QTimer::singleShot(3000, window, [window, hidden, &app] {
                 const bool saved = !window->property("showChrome").toBool() && window->grabWindow().save(hidden, "PNG");
                 app.exit(saved ? 0 : 2);

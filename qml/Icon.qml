@@ -22,6 +22,7 @@ Item {
     Keys.onSpacePressed: { activated(); event.accepted = true }
     Keys.onReturnPressed: { activated(); event.accepted = true }
     Keys.onEnterPressed: { activated(); event.accepted = true }
+    Keys.onShortcutOverride: if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) event.accepted = true
 
     HoverHandler { id: hover; enabled: icon.interactive || icon.tooltip.length > 0 }
     TapHandler { id: tap; enabled: icon.interactive }
@@ -32,7 +33,7 @@ Item {
         anchors.fill: parent
         radius: 6
         visible: icon.interactive && (hover.hovered || tap.pressed)
-        color: icon.closeButton && hover.hovered ? "#c42b1c" : tap.pressed ? "#ffffff24" : "#ffffff14"
+        color: icon.closeButton && hover.hovered ? "#c42b1c" : tap.pressed ? "#24ffffff" : "#14ffffff"
     }
     Rectangle { anchors.fill: parent; radius: 6; color: "transparent"; border.width: icon.activeFocus ? 1 : 0; border.color: Theme.accent }
     Image {
