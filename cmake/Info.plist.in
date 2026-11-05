@@ -26,6 +26,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>LSMinimumSystemVersion</key><string>12.0</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
@@ -33,7 +35,122 @@
             <key>CFBundleTypeRole</key><string>Viewer</string>
             <key>LSHandlerRank</key><string>Alternate</string>
             <key>LSItemContentTypes</key>
-            <array><string>public.movie</string><string>public.audio</string></array>
+            <array>
+                <string>public.movie</string><string>public.audio</string>
+                <string>org.matroska.mkv</string>
+                <string>org.webmproject.webm</string>
+                <string>com.adobe.flash.video</string>
+                <string>org.xiph.ogg-video</string>
+                <string>com.microsoft.windows-media-wmv</string>
+                <string>org.konus.mpeg-transport-stream</string>
+                <string>org.xiph.opus</string>
+                <string>org.xiph.ogg</string>
+                <string>org.xiph.flac</string>
+                <string>org.matroska.mka</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.matroska.mkv</string>
+            <key>UTTypeDescription</key><string>Matroska video</string>
+            <key>UTTypeConformsTo</key><array><string>public.movie</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>mkv</string></array>
+                <key>public.mime-type</key><string>video/x-matroska</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.webmproject.webm</string>
+            <key>UTTypeDescription</key><string>WebM video</string>
+            <key>UTTypeConformsTo</key><array><string>public.movie</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>webm</string></array>
+                <key>public.mime-type</key><string>video/webm</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>com.adobe.flash.video</string>
+            <key>UTTypeDescription</key><string>Flash video</string>
+            <key>UTTypeConformsTo</key><array><string>public.movie</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>flv</string><string>f4v</string></array>
+                <key>public.mime-type</key><string>video/x-flv</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.xiph.ogg-video</string>
+            <key>UTTypeDescription</key><string>Ogg video</string>
+            <key>UTTypeConformsTo</key><array><string>public.movie</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>ogv</string><string>ogm</string></array>
+                <key>public.mime-type</key><string>video/ogg</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>com.microsoft.windows-media-wmv</string>
+            <key>UTTypeDescription</key><string>Windows Media video</string>
+            <key>UTTypeConformsTo</key><array><string>public.movie</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>wmv</string></array>
+                <key>public.mime-type</key><string>video/x-ms-wmv</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.konus.mpeg-transport-stream</string>
+            <key>UTTypeDescription</key><string>MPEG transport stream</string>
+            <key>UTTypeConformsTo</key><array><string>public.movie</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>ts</string><string>m2ts</string><string>mts</string></array>
+                <key>public.mime-type</key><string>video/mp2t</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.xiph.opus</string>
+            <key>UTTypeDescription</key><string>Opus audio</string>
+            <key>UTTypeConformsTo</key><array><string>public.audio</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>opus</string></array>
+                <key>public.mime-type</key><string>audio/opus</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.xiph.ogg</string>
+            <key>UTTypeDescription</key><string>Ogg audio</string>
+            <key>UTTypeConformsTo</key><array><string>public.audio</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>ogg</string><string>oga</string></array>
+                <key>public.mime-type</key><string>audio/ogg</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.xiph.flac</string>
+            <key>UTTypeDescription</key><string>FLAC audio</string>
+            <key>UTTypeConformsTo</key><array><string>public.audio</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>flac</string></array>
+                <key>public.mime-type</key><string>audio/flac</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key><string>org.matroska.mka</string>
+            <key>UTTypeDescription</key><string>Matroska audio</string>
+            <key>UTTypeConformsTo</key><array><string>public.audio</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>mka</string></array>
+                <key>public.mime-type</key><string>audio/x-matroska</string>
+            </dict>
         </dict>
     </array>
 	<key>CSResourcesFileMapped</key>

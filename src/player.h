@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QUrl>
+#include <QPointer>
 #include <functional>
 #include <QVideoSink>
 #include <vlc/vlc.h>
@@ -15,6 +16,7 @@ class Player final : public QObject {
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY volumeChanged)
     Q_PROPERTY(bool hasVideo READ hasVideo NOTIFY hasVideoChanged)
+    Q_PROPERTY(bool hasMedia READ hasMedia NOTIFY hasMediaChanged)
     Q_PROPERTY(bool playing READ playing NOTIFY playingChanged)
     Q_PROPERTY(QString title READ title NOTIFY titleChanged)
     Q_PROPERTY(QUrl currentUrl READ currentUrl NOTIFY currentUrlChanged)
@@ -28,6 +30,7 @@ public:
     int volume() const { return m_volume; }
     bool muted() const { return m_muted; }
     bool playing() const;
+    bool hasMedia() const { return !m_pendingUrl.isEmpty() || !m_currentUrl.isEmpty(); }
     bool hasVideo() const { return m_hasVideo; }
     QString title() const { return m_title; }
     QUrl currentUrl() const { return m_currentUrl; }
@@ -42,6 +45,8 @@ signals:
     void positionChanged();
     void volumeChanged();
     void playingChanged();
+    void hasMediaChanged();
+    void endReached();
     void hasVideoChanged();
     void titleChanged();
     void currentUrlChanged();
@@ -61,7 +66,7 @@ private:
     void post(const std::function<void()> &fn);
     libvlc_instance_t *m_instance{};
     libvlc_media_player_t *m_player{};
-    QVideoSink *m_sink{};
+    QPointer<QVideoSink> m_sink;
     std::atomic<bool> m_framePending{false};
     int m_volume{80};
     bool m_muted{false};

@@ -16,7 +16,8 @@ ApplicationWindow {
     visible: true
     color: Theme.window
     palette.toolTipBase: "#2b2b2b"
-    palette.toolTipText: "#e5e5e5"
+    palette.toolTipText: "#c8c8c8"
+    palette.dark: "#3a3a3a"
     palette.mid: "#444444"
     flags: Qt.Window | Qt.FramelessWindowHint
     title: player.title
@@ -25,8 +26,10 @@ ApplicationWindow {
     readonly property bool chromePresent: showChrome || chromeOpacity > 0
     Behavior on chromeOpacity { NumberAnimation { duration: 150 } }
     function isChromeControl(item) {
-        for (; item; item = item.parent)
+        for (; item; item = item.parent) {
+            if (!item.visible) return false
             if (item === titlebar || item === rail || item === libpanel || item === controlbar) return true
+        }
         return false
     }
     readonly property bool chromeFocused: isChromeControl(activeFocusItem)
@@ -39,6 +42,20 @@ ApplicationWindow {
     property real seekDisplay: -1
     property string searchText: ""
     property bool searchOpen: false
+    onSearchOpenChanged: if (!searchOpen) {
+        searchText = ""
+        if (searchField.activeFocus) win.contentItem.forceActiveFocus()
+    }
+    property int beforeFullscreen: Window.Windowed
+    function toggleFullscreen() {
+        if (visibility === Window.FullScreen) {
+            showNormal()
+            // Qt restores a frameless macOS fullscreen window before it can maximize again.
+            if (beforeFullscreen === Window.Maximized) Qt.callLater(win.showMaximized)
+        }
+        else { beforeFullscreen = visibility; visibility = Window.FullScreen }
+    }
+    property int fileRevision: 0
     readonly property bool chromeHovered: titleHover.hovered || railHover.hovered || panelHover.hovered || controlsHover.hovered
     function fmt(ms) {
         let s = Math.floor(Math.max(0, ms) / 1000)
@@ -50,9 +67,11 @@ ApplicationWindow {
     }
     function reveal() { showChrome = true; idle.restart() }
     readonly property int currentFileIndex: {
+        const revision = fileRevision
         for (let i = 0; i < files.count; i++) if (sameUrl(files.get(i, "fileUrl"), player.currentUrl)) return i
         return -1
     }
+    onCurrentFileIndexChanged: syncCurrentRow()
     function stepFile(delta) {
         for (let i = 0; i < files.count; i++) {
             if (sameUrl(files.get(i, "fileUrl"), player.currentUrl)) {
@@ -94,7 +113,11 @@ ApplicationWindow {
     Timer { id: osdTimer; interval: 1500; onTriggered: osd.opacity = 0 }
     Connections {
         target: player
-        function onPlayingChanged() { win.reveal() }
+        function onPlayingChanged() {
+            if (player.hasMedia) win.notify(player.playing ? "Playing" : "Paused")
+            idle.restart()
+        }
+        function onEndReached() { win.stepFile(1) }
         function onHasVideoChanged() { win.reveal() }
         function onPlaybackError(message) { win.notify(message, 5000, true) }
         function onAudioTrackChanged(name) { win.notify(name) }
@@ -120,12 +143,24 @@ ApplicationWindow {
             return extensions.map(ext => searchText ? "*" + escaped + "*." + ext : "*." + ext)
         }
     }
-    Shortcut { sequence: "Space"; onActivated: { win.reveal(); playMouse.activate() } }
+    Connections {
+        target: files
+        function onDataChanged() { ++win.fileRevision }
+        function onRowsInserted() { ++win.fileRevision }
+        function onRowsRemoved() { ++win.fileRevision }
+        function onRowsMoved() { ++win.fileRevision }
+        function onLayoutChanged() { ++win.fileRevision }
+        function onModelReset() { ++win.fileRevision }
+    }
+    Shortcut { sequences: [StandardKey.Open]; onActivated: picker.open() }
+    Shortcut { sequence: "Space"; onActivated: playMouse.activate() }
+    Shortcut { sequence: "Shift+Left"; onActivated: win.seekBy(-30000) }
+    Shortcut { sequence: "Shift+Right"; onActivated: win.seekBy(30000) }
     function seekBy(delta) {
         if (player.length <= 0) return
         const time = Math.max(0, Math.min(player.length, player.time + delta))
         player.seek(time)
-        notify((delta < 0 ? "-5" : "+5") + " s · " + fmt(time), 800)
+        notify((delta < 0 ? "" : "+") + (delta / 1000) + " s · " + fmt(time), 800)
     }
     Shortcut { sequence: "Left"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) win.seekBy(-5000) }
     Shortcut { sequence: "Right"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) win.seekBy(5000) }
@@ -133,8 +168,8 @@ ApplicationWindow {
     Shortcut { sequence: "Up"; enabled: !fileList.activeFocus && !volumeMouse.activeFocus; onActivated: { player.volume = Math.min(100, player.volume + 5); notify("Volume " + player.volume + "%") } }
     Shortcut { sequence: "Down"; enabled: !fileList.activeFocus && !volumeMouse.activeFocus; onActivated: { player.volume = Math.max(0, player.volume - 5); notify("Volume " + player.volume + "%") } }
     Shortcut { sequence: "M"; onActivated: { win.reveal(); win.setMuted(!player.muted) } }
-    Shortcut { sequence: "F"; onActivated: { win.reveal(); win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen } }
-    Shortcut { sequence: "Escape"; onActivated: { win.reveal(); if (searchOpen) { searchText = ""; searchOpen = false } else if (win.visibility === Window.FullScreen) win.visibility = Window.Windowed } }
+    Shortcut { sequence: "F"; onActivated: { win.reveal(); win.toggleFullscreen() } }
+    Shortcut { sequence: "Escape"; onActivated: { win.reveal(); if (searchOpen) { searchText = ""; searchOpen = false } else if (win.visibility === Window.FullScreen) win.toggleFullscreen() } }
     DropArea { id: dropArea; anchors.fill: parent; onDropped: if (drop.urls.length) player.open(drop.urls[0]) }
     MouseArea {
         anchors.fill: parent
@@ -194,7 +229,7 @@ ApplicationWindow {
                     closeButton: modelData === "Cancel01"
                     accessibleName: modelData === "Cancel01" ? "Close" : modelData === "MinusSign" ? "Minimize" : modelData === "FullScreen" ? (win.visibility === Window.FullScreen ? "Exit fullscreen" : "Fullscreen") : (win.visibility === Window.Maximized ? "Restore" : "Maximize")
                     tooltip: accessibleName
-                    onActivated: if (modelData === "Cancel01") win.close(); else if (modelData === "MinusSign") win.showMinimized(); else win.visibility = modelData === "FullScreen" ? (win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen) : (win.visibility === Window.Maximized ? Window.Windowed : Window.Maximized)
+                    onActivated: if (modelData === "Cancel01") win.close(); else if (modelData === "MinusSign") win.showMinimized(); else if (modelData === "FullScreen") win.toggleFullscreen(); else win.visibility = win.visibility === Window.Maximized ? Window.Windowed : Window.Maximized
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -202,7 +237,7 @@ ApplicationWindow {
                     }
                 }
             }
-            Text { anchors.centerIn: parent; width: Math.min(300, parent.width - 600); text: player.title; color: "#8f8f8f"; font.pixelSize: 13; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+            Text { anchors.centerIn: parent; anchors.verticalCenterOffset: 1; width: Math.min(300, parent.width - 600); text: player.title; color: "#8f8f8f"; font.pixelSize: 14; font.letterSpacing: -0.1; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
             MouseArea {
                 anchors.fill: parent
                 z: -1
@@ -383,9 +418,9 @@ ApplicationWindow {
                                 Accessible.onPressAction: { fileList.currentIndex = index; player.open(fileUrl) }
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 7
-                                    spacing: 18
-                                    Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; size: 18; interactive: false; tint: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#8f8f8f" }
+                                    anchors.leftMargin: 5
+                                    spacing: 14
+                                    Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; glyphWidth: 22; glyphHeight: 18; transform: Translate { y: 1 } interactive: false; tint: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#8f8f8f" }
                                     Text { Layout.fillWidth: true; text: fileName; color: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#969696"; font.pixelSize: 14; elide: Text.ElideRight }
                                 }
                                 MouseArea {
@@ -402,9 +437,10 @@ ApplicationWindow {
                             Keys.onEnterPressed: if (currentIndex >= 0) player.open(files.get(currentIndex, "fileUrl"))
                         }
                         Text {
+                            id: emptyLibraryText
                             anchors.centerIn: parent
                             visible: (section === "Videos" || section === "Music") && files.count === 0
-                            text: searchText ? "No matches for \"" + searchText + "\"" : section === "Music" ? "No music in Music. Drop files or click Add…" : "No videos in Movies. Drop files or click Add…"
+                            text: searchText ? "No matches for \"" + searchText + "\"" : section === "Music" ? "No music in " + decodeURIComponent(files.folder.toString().replace(/\/$/, "").split("/").pop()) + ". Drop files or click Add…" : "No videos in " + decodeURIComponent(files.folder.toString().replace(/\/$/, "").split("/").pop()) + ". Drop files or click Add…"
                             color: Theme.muted
                             font.pixelSize: 14
                             wrapMode: Text.WordWrap
@@ -418,6 +454,7 @@ ApplicationWindow {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.bottomMargin: win.chromePresent ? 1 : 0
                 Layout.rightMargin: win.chromePresent && win.visibility !== Window.FullScreen ? 10 : 0
                 color: Theme.video
                             Rectangle {
@@ -425,12 +462,12 @@ ApplicationWindow {
                     color: Theme.video
                     Rectangle { anchors.fill: parent; anchors.margins: 2; color: "transparent"; border.width: dropArea.containsDrag ? 2 : 0; border.color: Theme.accent }
                     VideoOutput { id: output; anchors.fill: parent; fillMode: VideoOutput.PreserveAspectFit }
-                    Text { anchors.centerIn: parent; width: parent.width - 40; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; visible: !player.hasVideo; text: player.currentUrl.toString() ? player.title : "Drop a video here or click Add"; color: "#a0a0a0"; font.pixelSize: 13 }
+                    Text { anchors.centerIn: parent; width: parent.width - 40; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; visible: !player.hasVideo; text: player.currentUrl.toString() ? player.title : "Drop a video here or click Add"; color: Theme.text; font.pixelSize: 13 }
                     Repeater {
                         model: 4
                         delegate: Canvas {
                             required property int index
-                            width: 10; height: 10; z: 2
+                            width: 8; height: 8; z: 2
                             visible: win.visibility !== Window.FullScreen && (!win.chromePresent || index < 2)
                             x: index < 2 ? parent.width - width : 0
                             y: index === 0 || index === 3 ? 0 : parent.height - height
@@ -439,8 +476,8 @@ ApplicationWindow {
                                 const c = getContext("2d")
                                 c.clearRect(0, 0, width, height)
                                 c.fillStyle = Theme.window
-                                c.beginPath(); c.moveTo(0, 0); c.lineTo(10, 0); c.lineTo(10, 10)
-                                c.arc(0, 10, 10, 0, -Math.PI / 2, true); c.closePath(); c.fill()
+                                c.beginPath(); c.moveTo(0, 0); c.lineTo(width, 0); c.lineTo(width, height)
+                                c.arc(0, height, width, 0, -Math.PI / 2, true); c.closePath(); c.fill()
                             }
                         }
                     }
@@ -453,22 +490,23 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.top
                         anchors.topMargin: 20
-                        color: "#b3000000"
+                        color: error ? "#e6381c19" : "#b3000000"
+                        border.width: error ? 1 : 0
+                        border.color: "#c42b1c"
                         radius: 18
                         opacity: 0
                         visible: opacity > 0
                         z: 3
-                        width: osdLabel.implicitWidth + 28
+                        width: Math.min(osdLabel.implicitWidth + 28, parent.width - 40)
                         height: 34
-                        Rectangle { x: 0; y: 0; width: 3; height: parent.height; color: "#c42b1c"; visible: osd.error }
-                        Text { id: osdLabel; anchors.centerIn: parent; text: osd.text; color: "white"; font.pixelSize: 13 }
+                        Text { id: osdLabel; anchors.centerIn: parent; width: parent.width - 28; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; text: osd.text; color: "white"; font.pixelSize: 13 }
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                     }
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton
                         onClicked: player.togglePause()
-                        onDoubleClicked: { player.togglePause(); win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen }
+                        onDoubleClicked: { player.togglePause(); win.toggleFullscreen() }
                     }
                 }
             }
@@ -486,7 +524,7 @@ ApplicationWindow {
                 anchors.topMargin: -1
                 Item {
                     x: 0; y: 0; width: 154; height: parent.height
-                    Icon { x: 20.5; y: 12; name: "Previous"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex > 0; tint: enabled ? "#8f8f8f" : Theme.muted; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
+                    Icon { x: 20.5; y: 12; name: "Previous"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex > 0; tint: "#8f8f8f"; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
                     Rectangle {
                         x: 58; y: 14; width: 54; height: 28
                         border.width: playMouse.activeFocus ? 2 : 0
@@ -501,11 +539,14 @@ ApplicationWindow {
                             cursorShape: Qt.PointingHandCursor
                             Accessible.role: Accessible.Button
                             Accessible.name: player.playing ? "Pause" : "Play"
-                            ToolTip.visible: containsMouse
-                            ToolTip.delay: 600
-                            ToolTip.text: player.playing ? "Pause" : "Play"
+                            ToolTip {
+                                visible: playMouse.containsMouse
+                                delay: 600
+                                text: player.playing ? "Pause" : "Play"
+                                background: Rectangle { color: "#2b2b2b"; border.color: "#3a3a3a"; radius: 4 }
+                            }
                             activeFocusOnTab: true
-                            function activate() { if (player.title === "Konus" && files.count) player.open(files.get(0, "fileUrl")); else if (player.title === "Konus") picker.open(); else player.togglePause() }
+                            function activate() { if (!player.hasMedia && files.count) player.open(files.get(0, "fileUrl")); else if (!player.hasMedia) picker.open(); else player.togglePause() }
                             Accessible.onPressAction: activate()
                             Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) event.accepted = true }
                             Keys.onSpacePressed: activate()
@@ -514,7 +555,7 @@ ApplicationWindow {
                             onClicked: activate()
                         }
                     }
-                    Icon { x: 120.5; y: 12; name: "Next"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex >= 0 && win.currentFileIndex < files.count - 1; tint: enabled ? "#8f8f8f" : Theme.muted; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
+                    Icon { x: 120.5; y: 12; name: "Next"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex >= 0 && win.currentFileIndex < files.count - 1; tint: "#8f8f8f"; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
                 }
                 Text { x: 177; y: 19; text: fmt(win.seekPressed ? player.length * seekBar.dragProgress : player.time); color: Theme.text; font.pixelSize: 15; font.letterSpacing: -0.3 }
                 Item {
@@ -523,6 +564,8 @@ ApplicationWindow {
                     width: Math.max(120, parent.width - 676); height: 30
                     readonly property real progress: player.length > 0 ? Math.max(0, Math.min(1, player.time / player.length)) : 0
                     property real dragProgress: progress
+                    property real seekOrigin: 0
+                    property real lastScrubProgress: -1
                     readonly property real displayedProgress: seekBarMouse.pressed ? dragProgress : win.seekDisplay >= 0 ? win.seekDisplay : progress
                     readonly property real thumbX: 5 + (width - 18) * displayedProgress
                     Rectangle {
@@ -549,17 +592,26 @@ ApplicationWindow {
                         Accessible.onIncreaseAction: player.seek(Math.min(player.length, player.time + 5000))
                         Accessible.onDecreaseAction: player.seek(Math.max(0, player.time - 5000))
                         Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true }
-                        Keys.onLeftPressed: (event) => { win.seekBy(-5000); event.accepted = true }
-                        Keys.onRightPressed: (event) => { win.seekBy(5000); event.accepted = true }
-                        onPressed: (mouse) => { focus = false; win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
+                        Keys.onLeftPressed: (event) => { win.seekBy(event.modifiers & Qt.ShiftModifier ? -30000 : -5000); event.accepted = true }
+                        Keys.onRightPressed: (event) => { win.seekBy(event.modifiers & Qt.ShiftModifier ? 30000 : 5000); event.accepted = true }
+                        onPressed: (mouse) => { focus = false; win.seekPressed = true; seekBar.seekOrigin = player.time; seekBar.lastScrubProgress = -1; seekScrub.start(); seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
                         onPositionChanged: (mouse) => { if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
-                        onCanceled: { win.seekPressed = false; win.seekDisplay = -1; idle.restart() }
-                        onReleased: { player.seek(player.length * seekBar.dragProgress); win.seekDisplay = seekBar.dragProgress; seekRelease.restart(); win.seekPressed = false; idle.restart() }
+                        onCanceled: { seekScrub.stop(); if (seekBar.lastScrubProgress >= 0) player.seek(seekBar.seekOrigin); win.seekPressed = false; win.seekDisplay = -1; idle.restart() }
+                        onReleased: { seekScrub.stop(); player.seek(player.length * seekBar.dragProgress); win.seekDisplay = seekBar.dragProgress; seekRelease.restart(); win.seekPressed = false; idle.restart() }
                         ToolTip {
+                            background: Rectangle { color: "#2b2b2b"; border.color: "#3a3a3a"; radius: 4 }
                             id: seekTooltip
                             visible: seekBarMouse.containsMouse && player.length > 0
                             x: Math.max(0, Math.min(seekBarMouse.width - implicitWidth, seekBarMouse.mouseX - implicitWidth / 2))
                             text: win.fmt(player.length * Math.max(0, Math.min(1, (seekBarMouse.mouseX - 9) / (seekBarMouse.width - 18))))
+                        }
+                    }
+                    Timer {
+                        id: seekScrub
+                        interval: 100; repeat: true
+                        onTriggered: if (seekBar.lastScrubProgress !== seekBar.dragProgress) {
+                            player.seek(player.length * seekBar.dragProgress)
+                            seekBar.lastScrubProgress = seekBar.dragProgress
                         }
                     }
                     Timer { id: seekRelease; interval: 300; onTriggered: win.seekDisplay = -1 }
@@ -590,7 +642,7 @@ ApplicationWindow {
                                 const top = p => (h - edge) / 2 * (1 - p / w)
                                 c.clearRect(0, 0, w, h)
                                 c.fillStyle = "#090909"
-                                c.beginPath(); c.moveTo(0, (h-edge)/2); c.lineTo(0, (h+edge)/2); c.lineTo(w, h); c.lineTo(w, 0); c.closePath(); c.fill()
+                                c.beginPath(); c.moveTo(0, (h-edge)/2); c.lineTo(0, (h+edge)/2); c.lineTo(w - 2, h - top(w - 2)); c.quadraticCurveTo(w, h, w, h - 2); c.lineTo(w, 2); c.quadraticCurveTo(w, 0, w - 2, top(w - 2)); c.closePath(); c.fill()
                                 if (level <= 0) return
                                 const gradient = c.createLinearGradient(2, 0, x, 0)
                                 gradient.addColorStop(0, highlighted ? "#8cba24" : "#79a613")
@@ -630,8 +682,8 @@ ApplicationWindow {
                             function setLevel(x) { player.volume = Math.round(100 * Math.max(0, Math.min(1, x / width))); win.notify("Volume " + player.volume + "%") }
                         }
                     }
-                    Icon { x: 143; y: 12; name: "AudioWave01"; glyphWidth: 18; glyphHeight: 20; tint: "#727272"; interactive: true; accessibleName: "Audio track"; tooltip: "Audio track"; onActivated: player.cycleAudioTrack(); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleAudioTrack() } }
-                    Icon { x: 185; y: 12; name: "Subtitle"; glyphWidth: 22; glyphHeight: 16; interactive: true; accessibleName: "Subtitles"; tooltip: "Subtitles"; onActivated: player.cycleSubtitle(); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleSubtitle() } }
+                    Icon { x: 143; y: 12; name: "AudioWave01"; glyphWidth: 18; glyphHeight: 20; tint: player.hasMedia ? "#727272" : "#4a4a4a"; enabled: player.hasMedia; interactive: true; accessibleName: "Audio track"; tooltip: "Audio track"; onActivated: player.cycleAudioTrack(); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleAudioTrack() } }
+                    Icon { x: 185; y: 12; name: "Subtitle"; glyphWidth: 22; glyphHeight: 16; tint: player.hasMedia ? Theme.text : "#4a4a4a"; enabled: player.hasMedia; interactive: true; accessibleName: "Subtitles"; tooltip: "Subtitles"; onActivated: player.cycleSubtitle(); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleSubtitle() } }
                     Icon { x: 233; y: 18; name: "SettingsPlay"; glyphWidth: 20; glyphHeight: 20; interactive: false; tooltip: "Not available yet"; accessibleName: "Settings"; }
                     Icon { x: 277; y: 12; name: "ListBullets"; glyphWidth: 18; glyphHeight: 12; tint: "#727272"; interactive: true; tooltip: "Library"; accessibleName: "Toggle library"; onActivated: win.libraryOpen = !win.libraryOpen; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.libraryOpen = !win.libraryOpen } }
                 }

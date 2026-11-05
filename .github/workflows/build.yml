@@ -3,13 +3,15 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
     env:
       QT_VERSION: '6.8.3'
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +31,7 @@ jobs:
           "VLC_SDK_DIR=$((Get-Location).Path)/vlc-3.0.23/sdk" >> $env:GITHUB_ENV
       - name: Install libVLC (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libvlc-dev vlc-plugin-base
+        run: sudo apt-get update && sudo apt-get install -y libvlc-dev libvlc-bin vlc-plugin-base libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 libxcb-cursor0 ffmpeg xvfb
       - name: Configure and build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ runner.os == 'Windows' && format('-DVLC_SDK_DIR={0}/vlc-3.0.23/sdk', github.workspace) || '' }}
@@ -37,7 +39,7 @@ jobs:
       - name: Run frame regression check
         if: runner.os == 'macOS'
         run: |
-          cmake -S . -B build-fc -DCMAKE_PREFIX_PATH="$(brew --prefix qt)" -DCMAKE_BUILD_TYPE=Release -DKONUS_BUILD_FRAME_CHECK=ON
+          cmake -S . -B build-fc -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DCMAKE_BUILD_TYPE=Release -DKONUS_BUILD_FRAME_CHECK=ON
           cmake --build build-fc --config Release --target konus-frame-check --parallel
           ./build-fc/konus-frame-check
       - name: Package macOS
@@ -115,8 +117,11 @@ jobs:
           Compress-Archive -Path "$stage/*" -DestinationPath konus-windows.zip
       - name: Package Linux
         if: runner.os == 'Linux'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          QML_SOURCES_PATHS: qml
         run: |
-          mkdir -p AppDir/usr/bin AppDir/usr/lib/vlc AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/bin AppDir/usr/lib/vlc AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps
           cp build/konus AppDir/usr/bin/konus
           cp -R /usr/lib/x86_64-linux-gnu/vlc/plugins AppDir/usr/lib/vlc/
           cp /usr/share/doc/libvlc5/copyright AppDir/usr/lib/vlc/COPYRIGHT 2>/dev/null || true
@@ -139,14 +144,33 @@ jobs:
           qt_series=${qt_version%.*}
           printf 'Qt %s\nCorresponding source: https://download.qt.io/archive/qt/%s/%s/single/qt-everywhere-src-%s.tar.xz\n\nlibVLC and VLC plugins %s (Ubuntu %s source package vlc)\nCorresponding source: https://launchpad.net/ubuntu/%s/+source/vlc/%s\n' "$qt_version" "$qt_series" "$qt_version" "$qt_version" "$vlc_version" "$ubuntu_codename" "$ubuntu_codename" "$vlc_version" > AppDir/usr/share/konus/THIRD-PARTY-SOURCES.txt
           printf '[Desktop Entry]\nType=Application\nName=Konus\nExec=konus\nIcon=konus\nCategories=AudioVideo;Player;\n' > AppDir/usr/share/applications/konus.desktop
-          cp assets/icons/cone.svg AppDir/usr/share/icons/hicolor/256x256/apps/konus.svg
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          cp assets/app/konus.svg AppDir/usr/share/icons/hicolor/scalable/apps/konus.svg
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
-          mapfile -t vlc_plugins < <(find AppDir/usr/lib/vlc/plugins -type f -name '*.so')
-          plugin_args=()
-          for plugin in "${vlc_plugins[@]}"; do plugin_args+=(--library "$plugin"); done
-          LDAI_OUTPUT=konus-linux.AppImage QML_SOURCES_PATHS=qml ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/konus --library /usr/lib/x86_64-linux-gnu/libvlc.so.5 "${plugin_args[@]}" --desktop-file AppDir/usr/share/applications/konus.desktop --plugin qt --output appimage
+          dependency_args=()
+          while IFS= read -r -d '' plugin; do
+            dependency_args+=(--deploy-deps-only "$plugin")
+          done < <(find AppDir/usr/lib/vlc/plugins -type f -name '*.so' -print0)
+          QMAKE="$QT_ROOT_DIR/bin/qmake" ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable AppDir/usr/bin/konus --library /usr/lib/x86_64-linux-gnu/libvlc.so.5 "${dependency_args[@]}" --desktop-file AppDir/usr/share/applications/konus.desktop --plugin qt
+          LD_LIBRARY_PATH="$PWD/AppDir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" /usr/lib/x86_64-linux-gnu/vlc/vlc-cache-gen "$PWD/AppDir/usr/lib/vlc/plugins"
+          test -s AppDir/usr/lib/vlc/plugins/plugins.dat
+          # Package directly so another deployment pass cannot invalidate VLC's cache.
+          ./linuxdeploy-x86_64.AppImage --appimage-extract > /dev/null
+          LDAI_OUTPUT=konus-linux.AppImage ./squashfs-root/usr/bin/linuxdeploy-plugin-appimage --appdir AppDir
+      - name: Smoke Linux AppImage
+        if: runner.os == 'Linux'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          KONUS_GRAB: /tmp/grab.png
+          QT_QUICK_BACKEND: software
+        run: |
+          ffmpeg -y -f lavfi -i testsrc2=size=640x360:rate=25 -t 8 -c:v libx264 -pix_fmt yuv420p /tmp/konus-smoke.mp4
+          rm -f /tmp/grab.png
+          chmod +x konus-linux.AppImage
+          timeout 30s xvfb-run -a ./konus-linux.AppImage /tmp/konus-smoke.mp4
+          test -s /tmp/grab.png
+          file /tmp/grab.png | grep -q 'PNG image data'
       - uses: actions/upload-artifact@v4
         if: runner.os == 'macOS'
         with:
@@ -162,3 +186,21 @@ jobs:
         with:
           name: konus-linux
           path: konus-linux.AppImage
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: konus-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            konus-macos.zip
+            konus-windows.zip
+            konus-linux.AppImage

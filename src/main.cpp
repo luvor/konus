@@ -1,5 +1,6 @@
 #include "player.h"
 #include <QGuiApplication>
+#include <QIcon>
 #include <QFileOpenEvent>
 #include <QFont>
 #include <QFontDatabase>
@@ -57,6 +58,8 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle("Basic");
     Application app(argc, argv);
     QCoreApplication::setApplicationName("Konus");
+    QCoreApplication::setApplicationVersion(QStringLiteral(KONUS_VERSION));
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/konus/assets/app/konus.svg")));
     const int regularFont = QFontDatabase::addApplicationFont(":/konus/assets/fonts/Inter-Regular.ttf");
     const int mediumFont = QFontDatabase::addApplicationFont(":/konus/assets/fonts/Inter-Medium.ttf");
     if (regularFont < 0 || mediumFont < 0) qWarning() << "Failed to load bundled Inter font; using system font";

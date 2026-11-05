@@ -29,9 +29,12 @@ Item {
 
     HoverHandler { id: hover; enabled: icon.interactive || icon.tooltip.length > 0 }
     TapHandler { id: tap; enabled: icon.interactive }
-    ToolTip.visible: icon.tooltip.length > 0 && hover.hovered
-    ToolTip.delay: 600
-    ToolTip.text: icon.tooltip
+    ToolTip {
+        visible: icon.tooltip.length > 0 && hover.hovered
+        delay: 600
+        text: icon.tooltip
+        background: Rectangle { color: "#2b2b2b"; border.color: "#3a3a3a"; radius: 4 }
+    }
     Rectangle {
         anchors.fill: parent
         radius: 6

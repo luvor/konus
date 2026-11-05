@@ -1,7 +1,9 @@
 Konus third-party notices
 
 Design
-The interface design is by Juxtopposed, based on “I Redesigned VLC After 25 Years”.
+The interface design was adapted from Juxtopposed's design, based on
+“I Redesigned VLC After 25 Years”. Changes made: implementation as a Qt/QML
+player, layout and interaction adaptations, and original cone artwork.
 Used under Creative Commons Attribution 4.0 International (CC BY 4.0):
 https://creativecommons.org/licenses/by/4.0/
 https://www.figma.com/community/file/1691465999134370980

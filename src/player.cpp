@@ -1,4 +1,5 @@
 #include "player.h"
+#include <QDebug>
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QMetaObject>
@@ -30,6 +31,7 @@ Player::Player(QObject *parent) : QObject(parent) {
 #endif
     const char *args[] = {"--no-video-title-show"};
     m_instance = libvlc_new(1, args);
+    if (!m_instance) qWarning() << "libVLC failed to start:" << (libvlc_errmsg() ? libvlc_errmsg() : "unknown error");
     if (m_instance) {
         m_player = libvlc_media_player_new(m_instance);
         if (m_player) {
@@ -70,6 +72,7 @@ void Player::event(const libvlc_event_t *e, void *data) {
         }
         if (type == libvlc_MediaPlayerPlaying || type == libvlc_MediaPlayerPaused || type == libvlc_MediaPlayerStopped || type == libvlc_MediaPlayerEndReached) emit self->playingChanged();
         emit self->positionChanged();
+        if (type == libvlc_MediaPlayerEndReached) emit self->endReached();
     });
 }
 unsigned Player::setup(void **opaque, char *chroma, unsigned *w, unsigned *h, unsigned *pitches, unsigned *lines) {
@@ -137,6 +140,7 @@ void Player::open(const QUrl &url) {
     resetMedia();
     m_pendingUrl = url;
     m_pendingTitle = name;
+    emit hasMediaChanged();
     libvlc_media_player_set_media(m_player, media); libvlc_media_release(media);
     if (libvlc_media_player_play(m_player) != 0) {
         failMedia(name);
@@ -154,6 +158,7 @@ void Player::resetMedia() {
     m_currentUrl.clear();
     m_title = QStringLiteral("Konus");
     m_hasVideo = false;
+    emit hasMediaChanged();
     emit currentUrlChanged();
     emit titleChanged();
     emit hasVideoChanged();
@@ -175,8 +180,42 @@ void Player::togglePause() {
     }
 }
 void Player::seek(qint64 ms) { if (m_player && length() > 0) libvlc_media_player_set_time(m_player, qBound<qint64>(0, ms, length())); }
-void Player::cycleSubtitle() { if (!m_player) return; auto ids=libvlc_video_get_spu_description(m_player); if (!ids) return; int current=libvlc_video_get_spu(m_player), next=-1; QString name=QStringLiteral("Subtitles off"); bool selected=false; for(auto p=ids;p;p=p->p_next) { if(p->i_id>current){next=p->i_id;name=QString::fromUtf8(p->psz_name);selected=true;break;} } if(!selected) for(auto p=ids;p;p=p->p_next) if(p->i_id==-1) {name=QStringLiteral("Subtitles off");break;} libvlc_track_description_list_release(ids); libvlc_video_set_spu(m_player,next); emit subtitleChanged(name); }
-void Player::cycleAudioTrack() { if (!m_player) return; auto ids=libvlc_audio_get_track_description(m_player); if(!ids)return; int current=libvlc_audio_get_track(m_player), next=-1; QString name; for(auto p=ids;p;p=p->p_next) if(p->i_id>current&&p->i_id!=-1){next=p->i_id;name=QString::fromUtf8(p->psz_name);break;} if(next==-1) for(auto p=ids;p;p=p->p_next) if(p->i_id!=-1){next=p->i_id;name=QString::fromUtf8(p->psz_name);break;} libvlc_track_description_list_release(ids); if(next!=-1){libvlc_audio_set_track(m_player,next);emit audioTrackChanged(name);} }
+void Player::cycleSubtitle() {
+    auto *ids = m_player ? libvlc_video_get_spu_description(m_player) : nullptr;
+    const int current = m_player ? libvlc_video_get_spu(m_player) : -1;
+    int next = -1;
+    bool available = false;
+    QString name = QStringLiteral("Subtitles off");
+    for (auto *track = ids; track; track = track->p_next) {
+        if (track->i_id < 0) continue;
+        available = true;
+        if (next == -1 && track->i_id > current) {
+            next = track->i_id;
+            name = QString::fromUtf8(track->psz_name);
+        }
+    }
+    if (ids) libvlc_track_description_list_release(ids);
+    if (!available) { emit subtitleChanged(QStringLiteral("No subtitles")); return; }
+    libvlc_video_set_spu(m_player, next);
+    emit subtitleChanged(name);
+}
+void Player::cycleAudioTrack() {
+    auto *ids = m_player ? libvlc_audio_get_track_description(m_player) : nullptr;
+    const int current = m_player ? libvlc_audio_get_track(m_player) : -1;
+    int count = 0, next = -1, first = -1;
+    QString name, firstName;
+    for (auto *track = ids; track; track = track->p_next) {
+        if (track->i_id < 0) continue;
+        ++count;
+        if (first == -1) { first = track->i_id; firstName = QString::fromUtf8(track->psz_name); }
+        if (next == -1 && track->i_id > current) { next = track->i_id; name = QString::fromUtf8(track->psz_name); }
+    }
+    if (ids) libvlc_track_description_list_release(ids);
+    if (count < 2) { emit audioTrackChanged(QStringLiteral("No other audio track")); return; }
+    if (next == -1) { next = first; name = firstName; }
+    libvlc_audio_set_track(m_player, next);
+    emit audioTrackChanged(name);
+}
 void Player::setVolume(int v) { m_volume=qBound(0,v,100); if(m_volume>0)m_muted=false; if(m_player)libvlc_audio_set_volume(m_player,m_muted?0:m_volume); emit volumeChanged(); }
 void Player::setMuted(bool v) { m_muted=v; if(m_player)libvlc_audio_set_volume(m_player,m_muted?0:m_volume); emit volumeChanged(); }
 qint64 Player::time() const { return m_player?libvlc_media_player_get_time(m_player):0; }
