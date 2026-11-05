@@ -5,6 +5,8 @@ Item {
     id: icon
     property string name
     property int size: 18
+    property real glyphWidth: size
+    property real glyphHeight: size
     property color tint: "#8f8f8f"
     property color hoverTint: Qt.lighter(tint, 1.3)
     property bool interactive: false
@@ -12,17 +14,17 @@ Item {
     property string tooltip: ""
     property string accessibleName: tooltip
     signal activated()
-    width: interactive ? Math.max(size, 32) : size
-    height: interactive ? Math.max(size, 32) : size
+    width: interactive ? Math.max(glyphWidth, 32) : glyphWidth
+    height: interactive ? Math.max(glyphHeight, 32) : glyphHeight
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName || name
     Accessible.ignored: !interactive
     Accessible.onPressAction: icon.activated()
     activeFocusOnTab: interactive
-    Keys.onSpacePressed: { activated(); event.accepted = true }
-    Keys.onReturnPressed: { activated(); event.accepted = true }
-    Keys.onEnterPressed: { activated(); event.accepted = true }
-    Keys.onShortcutOverride: if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) event.accepted = true
+    Keys.onSpacePressed: (event) => { activated(); event.accepted = true }
+    Keys.onReturnPressed: (event) => { activated(); event.accepted = true }
+    Keys.onEnterPressed: (event) => { activated(); event.accepted = true }
+    Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) event.accepted = true }
 
     HoverHandler { id: hover; enabled: icon.interactive || icon.tooltip.length > 0 }
     TapHandler { id: tap; enabled: icon.interactive }
@@ -38,9 +40,9 @@ Item {
     Rectangle { anchors.fill: parent; radius: 6; color: "transparent"; border.width: icon.activeFocus ? 1 : 0; border.color: Theme.accent }
     Image {
         anchors.centerIn: parent
-        width: icon.size
-        height: icon.size
+        width: icon.glyphWidth
+        height: icon.glyphHeight
         source: "image://icons/" + icon.name + "/" + (icon.closeButton && hover.hovered ? "#ffffff" : (hover.hovered && icon.interactive ? icon.hoverTint : icon.tint)).toString().slice(1)
-        sourceSize: Qt.size(icon.size * 2, icon.size * 2)
+        sourceSize: Qt.size(icon.glyphWidth * 2, icon.glyphHeight * 2)
     }
 }
