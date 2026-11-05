@@ -35,7 +35,7 @@ else()
   target_link_libraries(konus PRIVATE PkgConfig::VLC)
 endif()
 if(APPLE)
-  set_target_properties(konus PROPERTIES MACOSX_BUNDLE TRUE BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/../Frameworks;${VLC_SDK_DIR}/lib")
+  set_target_properties(konus PROPERTIES MACOSX_BUNDLE TRUE MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in" MACOSX_BUNDLE_GUI_IDENTIFIER "org.konus.player" MACOSX_BUNDLE_BUNDLE_NAME "Konus" BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/../Frameworks;${VLC_SDK_DIR}/lib")
 endif()
 
 option(KONUS_BUILD_FRAME_CHECK "Build the dropped-picture regression check" OFF)

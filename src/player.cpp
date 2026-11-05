@@ -174,7 +174,7 @@ void Player::togglePause() {
         libvlc_media_player_pause(m_player);
     }
 }
-void Player::seek(qint64 ms) { if (m_player) libvlc_media_player_set_time(m_player, ms); }
+void Player::seek(qint64 ms) { if (m_player && length() > 0) libvlc_media_player_set_time(m_player, qBound<qint64>(0, ms, length())); }
 void Player::cycleSubtitle() { if (!m_player) return; auto ids=libvlc_video_get_spu_description(m_player); if (!ids) return; int current=libvlc_video_get_spu(m_player), next=-1; QString name=QStringLiteral("Subtitles off"); bool selected=false; for(auto p=ids;p;p=p->p_next) { if(p->i_id>current){next=p->i_id;name=QString::fromUtf8(p->psz_name);selected=true;break;} } if(!selected) for(auto p=ids;p;p=p->p_next) if(p->i_id==-1) {name=QStringLiteral("Subtitles off");break;} libvlc_track_description_list_release(ids); libvlc_video_set_spu(m_player,next); emit subtitleChanged(name); }
 void Player::cycleAudioTrack() { if (!m_player) return; auto ids=libvlc_audio_get_track_description(m_player); if(!ids)return; int current=libvlc_audio_get_track(m_player), next=-1; QString name; for(auto p=ids;p;p=p->p_next) if(p->i_id>current&&p->i_id!=-1){next=p->i_id;name=QString::fromUtf8(p->psz_name);break;} if(next==-1) for(auto p=ids;p;p=p->p_next) if(p->i_id!=-1){next=p->i_id;name=QString::fromUtf8(p->psz_name);break;} libvlc_track_description_list_release(ids); if(next!=-1){libvlc_audio_set_track(m_player,next);emit audioTrackChanged(name);} }
 void Player::setVolume(int v) { m_volume=qBound(0,v,100); if(m_volume>0)m_muted=false; if(m_player)libvlc_audio_set_volume(m_player,m_muted?0:m_volume); emit volumeChanged(); }

@@ -34,6 +34,12 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release ${{ runner.os == 'Windows' && format('-DVLC_SDK_DIR={0}/vlc-3.0.23/sdk', github.workspace) || '' }}
           cmake --build build --config Release --parallel
+      - name: Run frame regression check
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build-fc -DCMAKE_PREFIX_PATH="$(brew --prefix qt)" -DCMAKE_BUILD_TYPE=Release -DKONUS_BUILD_FRAME_CHECK=ON
+          cmake --build build-fc --config Release --target konus-frame-check --parallel
+          ./build-fc/konus-frame-check
       - name: Package macOS
         if: runner.os == 'macOS'
         run: |
@@ -69,6 +75,21 @@ jobs:
           $stage = "$(Get-Location)/build/Release"
           $vlc = "$(Get-Location)/vlc-3.0.23"
           windeployqt --release --qmldir qml "$stage/konus.exe"
+          $redistRoot = $env:VCToolsRedistDir
+          if (-not $redistRoot) {
+            $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+            if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found: $vswhere" }
+            $vsInstall = & $vswhere -latest -products '*' -property installationPath
+            if (-not $vsInstall) { throw 'Visual Studio installation not found by vswhere' }
+            $redistRoot = Join-Path $vsInstall 'VC/Redist/MSVC'
+          }
+          $crt = Get-ChildItem $redistRoot -Directory -Filter 'Microsoft.VC*.CRT' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Parent.Name -eq 'x64' } | Select-Object -First 1
+          if (-not $crt) { throw "x64 Microsoft.VC*.CRT folder not found under $redistRoot" }
+          $runtimeDlls = Get-ChildItem $crt.FullName -File | Where-Object { $_.Name -like 'msvcp140*.dll' -or $_.Name -like 'vcruntime140*.dll' -or $_.Name -eq 'concrt140.dll' }
+          foreach ($pattern in @('msvcp140*.dll', 'vcruntime140*.dll', 'concrt140.dll')) {
+            if (-not ($runtimeDlls | Where-Object { $_.Name -like $pattern })) { throw "Required MSVC runtime file not found: $pattern in $($crt.FullName)" }
+          }
+          foreach ($dll in $runtimeDlls) { Copy-Item $dll.FullName $stage }
           Copy-Item "$vlc/libvlc.dll", "$vlc/libvlccore.dll" $stage
           Copy-Item "$vlc/plugins" "$stage/plugins" -Recurse
           Copy-Item LICENSE, NOTICE, assets/icons/LICENSE-hugeicons.txt, assets/fonts/OFL.txt $stage

@@ -41,6 +41,8 @@ cmake --build build -j
 
 Install Qt 6 using the Qt online installer and download the [VLC 3.0.23 SDK](https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.7z). Point `VLC_SDK_DIR` to its extracted `sdk` directory:
 
+The Windows ZIP includes the MSVC runtime DLLs beside the app; extract it and run `konus.exe` with no installer needed.
+
 ```powershell
 cmake -S . -B build -DVLC_SDK_DIR=C:/vlc/sdk -DCMAKE_PREFIX_PATH=C:/Qt/6.8.0/msvc2022_64
 cmake --build build --config Release

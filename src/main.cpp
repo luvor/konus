@@ -1,5 +1,6 @@
 #include "player.h"
 #include <QGuiApplication>
+#include <QFileOpenEvent>
 #include <QFont>
 #include <QFontDatabase>
 #include <QDebug>
@@ -35,10 +36,26 @@ public:
     }
 };
 
+class Application final : public QGuiApplication {
+public:
+    using QGuiApplication::QGuiApplication;
+    Player *player = nullptr;
+    QList<QUrl> pendingFiles;
+    bool event(QEvent *event) override {
+        if (event->type() == QEvent::FileOpen) {
+            const auto url = static_cast<QFileOpenEvent *>(event)->url();
+            if (player) player->open(url);
+            else pendingFiles.append(url);
+            return true;
+        }
+        return QGuiApplication::event(event);
+    }
+};
+
 int main(int argc, char *argv[]) {
     qputenv("QSG_DISTANCEFIELD_ANTIALIASING", "gray");
     QQuickStyle::setStyle("Basic");
-    QGuiApplication app(argc, argv);
+    Application app(argc, argv);
     QCoreApplication::setApplicationName("Konus");
     const int regularFont = QFontDatabase::addApplicationFont(":/konus/assets/fonts/Inter-Regular.ttf");
     const int mediumFont = QFontDatabase::addApplicationFont(":/konus/assets/fonts/Inter-Medium.ttf");
@@ -49,6 +66,9 @@ int main(int argc, char *argv[]) {
     if (QFileInfo::exists(bundledPlugins)) qputenv("VLC_PLUGIN_PATH", QDir::cleanPath(bundledPlugins).toUtf8());
 #endif
     Player player;
+    app.player = &player;
+    for (const auto &url : app.pendingFiles) player.open(url);
+    app.pendingFiles.clear();
     QQmlApplicationEngine engine;
     engine.addImageProvider("icons", new IconProvider);
     engine.rootContext()->setContextProperty("player", &player);

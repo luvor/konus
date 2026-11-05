@@ -21,6 +21,16 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint
     title: player.title
     property bool showChrome: true
+    property real chromeOpacity: showChrome ? 1 : 0
+    readonly property bool chromePresent: showChrome || chromeOpacity > 0
+    Behavior on chromeOpacity { NumberAnimation { duration: 150 } }
+    function isChromeControl(item) {
+        for (; item; item = item.parent)
+            if (item === titlebar || item === rail || item === libpanel || item === controlbar) return true
+        return false
+    }
+    readonly property bool chromeFocused: isChromeControl(activeFocusItem)
+    onActiveFocusItemChanged: if (isChromeControl(activeFocusItem)) reveal()
     property bool libraryOpen: true
     property string section: "Videos"
     property bool seekPressed: false
@@ -55,7 +65,8 @@ ApplicationWindow {
     function syncCurrentRow() {
         fileList.currentIndex = currentFileIndex
     }
-    function notify(message, duration) {
+    function notify(message, duration, error) {
+        osd.error = error || false
         osd.text = message
         osd.opacity = 1
         osdTimer.interval = duration || 1500
@@ -76,7 +87,7 @@ ApplicationWindow {
         interval: 2500
         onTriggered: {
             if (!player.playing || !player.hasVideo) return
-            if (win.chromeHovered || win.seekPressed || win.volumePressed) restart()
+            if (win.chromeHovered || win.chromeFocused || win.seekPressed || win.volumePressed) restart()
             else win.showChrome = false
         }
     }
@@ -85,14 +96,14 @@ ApplicationWindow {
         target: player
         function onPlayingChanged() { win.reveal() }
         function onHasVideoChanged() { win.reveal() }
-        function onPlaybackError(message) { win.notify(message, 5000) }
+        function onPlaybackError(message) { win.notify(message, 5000, true) }
         function onAudioTrackChanged(name) { win.notify(name) }
         function onSubtitleChanged(name) { win.notify(name) }
         function onCurrentUrlChanged() { win.syncCurrentRow() }
     }
     FileDialog {
         id: picker
-        nameFilters: ["Video files (*.mp4 *.mkv *.mov *.avi *.webm *.m4v *.mp3 *.flac *.m4a *.wav *.ogg)", "All files (*)"]
+        nameFilters: ["Media files (*.mp4 *.mkv *.mov *.avi *.webm *.m4v *.wmv *.flv *.ts *.m2ts *.mpg *.mpeg *.3gp *.ogv *.mp3 *.flac *.m4a *.wav *.ogg *.opus *.aac *.m4b *.aiff)", "All files (*)"]
         onAccepted: player.open(selectedFile)
     }
     FolderListModel {
@@ -104,14 +115,21 @@ ApplicationWindow {
         sortCaseSensitive: false
         onCountChanged: win.syncCurrentRow()
         nameFilters: {
-            const extensions = section === "Music" ? ["mp3", "flac", "m4a", "wav", "ogg"] : ["mp4", "mkv", "mov", "avi", "webm", "m4v"]
+            const extensions = section === "Music" ? ["mp3", "flac", "m4a", "wav", "ogg", "opus", "aac", "m4b", "aiff"] : ["mp4", "mkv", "mov", "avi", "webm", "m4v", "wmv", "flv", "ts", "m2ts", "mpg", "mpeg", "3gp", "ogv"]
             const escaped = searchText.replace(/[\[\]*?]/g, "[$&]")
             return extensions.map(ext => searchText ? "*" + escaped + "*." + ext : "*." + ext)
         }
     }
-    Shortcut { sequence: "Space"; onActivated: { win.reveal(); player.togglePause() } }
-    Shortcut { sequence: "Left"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) { player.seek(Math.max(0, player.time - 5000)); notify("-5 s · " + fmt(Math.max(0, player.time - 5000)), 800) } }
-    Shortcut { sequence: "Right"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) { player.seek(player.time + 5000); notify("+5 s · " + fmt(player.time + 5000), 800) } }
+    Shortcut { sequence: "Space"; onActivated: { win.reveal(); playMouse.activate() } }
+    function seekBy(delta) {
+        if (player.length <= 0) return
+        const time = Math.max(0, Math.min(player.length, player.time + delta))
+        player.seek(time)
+        notify((delta < 0 ? "-5" : "+5") + " s · " + fmt(time), 800)
+    }
+    Shortcut { sequence: "Left"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) win.seekBy(-5000) }
+    Shortcut { sequence: "Right"; onActivated: if (!seekBarMouse.activeFocus && !fileList.activeFocus) win.seekBy(5000) }
+    Shortcut { sequence: "Tab"; enabled: !win.showChrome; onActivated: { win.reveal(); sidebarIcon.forceActiveFocus(Qt.TabFocusReason) } }
     Shortcut { sequence: "Up"; enabled: !fileList.activeFocus && !volumeMouse.activeFocus; onActivated: { player.volume = Math.min(100, player.volume + 5); notify("Volume " + player.volume + "%") } }
     Shortcut { sequence: "Down"; enabled: !fileList.activeFocus && !volumeMouse.activeFocus; onActivated: { player.volume = Math.max(0, player.volume - 5); notify("Volume " + player.volume + "%") } }
     Shortcut { sequence: "M"; onActivated: { win.reveal(); win.setMuted(!player.muted) } }
@@ -124,20 +142,27 @@ ApplicationWindow {
         acceptedButtons: Qt.NoButton
         hoverEnabled: true
         cursorShape: win.showChrome ? Qt.ArrowCursor : Qt.BlankCursor
-        onPositionChanged: win.reveal()
+        property point lastPointer: Qt.point(-1, -1)
+        onPositionChanged: (mouse) => {
+            if (win.showChrome || lastPointer.x < 0 || Math.hypot(mouse.x - lastPointer.x, mouse.y - lastPointer.y) >= 3) {
+                lastPointer = Qt.point(mouse.x, mouse.y)
+                win.reveal()
+            }
+        }
         onExited: idle.restart()
         onWheel: win.wheelVolume(wheel.angleDelta.y)
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: win.showChrome ? 0 : 10
+        anchors.margins: win.chromePresent || win.visibility === Window.FullScreen ? 0 : 10
         spacing: 0
         Rectangle {
             id: titlebar
             Layout.fillWidth: true
             Layout.preferredHeight: 40
             color: Theme.window
-            visible: win.showChrome
+            visible: win.chromePresent
+            opacity: win.chromeOpacity
             HoverHandler { id: titleHover }
             Image { x: 15; y: 8; width: 20; height: 25; source: "image://icons/cone/d37918"; sourceSize: Qt.size(40, 50) }
             Icon { x: 57; y: 18; name: "MoreHorizontal"; glyphWidth: 16; glyphHeight: 4; tooltip: "Not available yet"; accessibleName: "More options" }
@@ -162,12 +187,12 @@ ApplicationWindow {
                     required property string modelData
                     required property int index
                     x: titlebar.width - 148 + index * 36; y: 4
-                    name: modelData === "Maximize01" && win.visibility === Window.Maximized ? "Restore" : modelData
+                    name: modelData === "Maximize01" && win.visibility === Window.Maximized ? "Restore" : modelData === "FullScreen" && win.visibility === Window.FullScreen ? "ExitFullScreen" : modelData
                     size: modelData === "MinusSign" || modelData === "Cancel01" ? 18 : 14
                     tint: modelData === "MinusSign" ? "#727272" : modelData === "Cancel01" ? "#8f8f8f" : "#888888"
                     interactive: true
                     closeButton: modelData === "Cancel01"
-                    accessibleName: modelData === "Cancel01" ? "Close" : modelData === "MinusSign" ? "Minimize" : modelData === "FullScreen" ? "Fullscreen" : "Maximize"
+                    accessibleName: modelData === "Cancel01" ? "Close" : modelData === "MinusSign" ? "Minimize" : modelData === "FullScreen" ? (win.visibility === Window.FullScreen ? "Exit fullscreen" : "Fullscreen") : (win.visibility === Window.Maximized ? "Restore" : "Maximize")
                     tooltip: accessibleName
                     onActivated: if (modelData === "Cancel01") win.close(); else if (modelData === "MinusSign") win.showMinimized(); else win.visibility = modelData === "FullScreen" ? (win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen) : (win.visibility === Window.Maximized ? Window.Windowed : Window.Maximized)
                     MouseArea {
@@ -194,7 +219,8 @@ ApplicationWindow {
             spacing: 0
             Rectangle {
                 id: rail
-                visible: win.showChrome
+                visible: win.chromePresent
+                opacity: win.chromeOpacity
                 Layout.fillHeight: true
                 Layout.preferredWidth: visible ? 50 : 0
                 color: Theme.rail
@@ -213,7 +239,6 @@ ApplicationWindow {
                             height: 46
                             Icon {
                                 width: 50; height: 46
-                                glyphOffsetX: 1
                                 anchors.centerIn: parent
                                 anchors.verticalCenterOffset: index === 4 ? 1 : 0
                                 name: modelData
@@ -239,7 +264,8 @@ ApplicationWindow {
             }
             Rectangle {
                 id: libpanel
-                visible: win.showChrome && win.libraryOpen
+                visible: win.chromePresent && win.libraryOpen
+                opacity: win.chromeOpacity
                 Layout.fillHeight: true
                     Layout.preferredWidth: visible ? Theme.panelWidth : 0
                 color: Theme.panel
@@ -354,11 +380,12 @@ ApplicationWindow {
                                 border.color: Theme.accent
                                 Accessible.role: Accessible.ListItem
                                 Accessible.name: fileName
+                                Accessible.onPressAction: { fileList.currentIndex = index; player.open(fileUrl) }
                                 RowLayout {
                                     anchors.fill: parent
                                     anchors.leftMargin: 7
                                     spacing: 18
-                                    Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; size: 18; interactive: false; tint: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : Theme.muted }
+                                    Icon { name: win.section === "Music" ? "MusicNote01" : "Video01"; size: 18; interactive: false; tint: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#8f8f8f" }
                                     Text { Layout.fillWidth: true; text: fileName; color: win.sameUrl(fileUrl, player.currentUrl) ? Theme.accent : "#969696"; font.pixelSize: 14; elide: Text.ElideRight }
                                 }
                                 MouseArea {
@@ -391,7 +418,7 @@ ApplicationWindow {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.rightMargin: win.showChrome ? 10 : 0
+                Layout.rightMargin: win.chromePresent && win.visibility !== Window.FullScreen ? 10 : 0
                 color: Theme.video
                             Rectangle {
                     anchors.fill: parent
@@ -404,7 +431,7 @@ ApplicationWindow {
                         delegate: Canvas {
                             required property int index
                             width: 10; height: 10; z: 2
-                            visible: !win.showChrome || index < 2
+                            visible: win.visibility !== Window.FullScreen && (!win.chromePresent || index < 2)
                             x: index < 2 ? parent.width - width : 0
                             y: index === 0 || index === 3 ? 0 : parent.height - height
                             rotation: index * 90
@@ -420,6 +447,9 @@ ApplicationWindow {
                     Rectangle {
                         id: osd
                         property string text: ""
+                        property bool error: false
+                        Accessible.role: Accessible.AlertMessage
+                        Accessible.name: text
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.top
                         anchors.topMargin: 20
@@ -430,6 +460,7 @@ ApplicationWindow {
                         z: 3
                         width: osdLabel.implicitWidth + 28
                         height: 34
+                        Rectangle { x: 0; y: 0; width: 3; height: parent.height; color: "#c42b1c"; visible: osd.error }
                         Text { id: osdLabel; anchors.centerIn: parent; text: osd.text; color: "white"; font.pixelSize: 13 }
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                     }
@@ -445,12 +476,14 @@ ApplicationWindow {
         Rectangle {
             id: controlbar
             Layout.fillWidth: true
-            Layout.preferredHeight: 55
+            Layout.preferredHeight: 54
             color: Theme.control
-            visible: win.showChrome
+            visible: win.chromePresent
+            opacity: win.chromeOpacity
             HoverHandler { id: controlsHover }
             Item {
                 anchors.fill: parent
+                anchors.topMargin: -1
                 Item {
                     x: 0; y: 0; width: 154; height: parent.height
                     Icon { x: 20.5; y: 12; name: "Previous"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex > 0; tint: enabled ? "#8f8f8f" : Theme.muted; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
@@ -459,7 +492,7 @@ ApplicationWindow {
                         border.width: playMouse.activeFocus ? 2 : 0
                         border.color: "#1a1a1a"
                         color: playMouse.pressed ? Qt.darker(Theme.accent, 1.2) : playMouse.containsMouse ? Qt.lighter(Theme.accent, 1.15) : Theme.accent
-                        radius: 4
+                        radius: 6
                         Icon { anchors.centerIn: parent; name: player.playing ? "Pause" : "Play"; size: 18; tint: "#1a1a1a"; interactive: false }
                         MouseArea {
                             id: playMouse
@@ -483,7 +516,7 @@ ApplicationWindow {
                     }
                     Icon { x: 120.5; y: 12; name: "Next"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex >= 0 && win.currentFileIndex < files.count - 1; tint: enabled ? "#8f8f8f" : Theme.muted; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
                 }
-                Text { x: 177; y: 19; text: fmt(player.time); color: Theme.text; font.pixelSize: 15; font.letterSpacing: -0.3 }
+                Text { x: 177; y: 19; text: fmt(win.seekPressed ? player.length * seekBar.dragProgress : player.time); color: Theme.text; font.pixelSize: 15; font.letterSpacing: -0.3 }
                 Item {
                     id: seekBar
                     x: 251; y: 13
@@ -516,10 +549,11 @@ ApplicationWindow {
                         Accessible.onIncreaseAction: player.seek(Math.min(player.length, player.time + 5000))
                         Accessible.onDecreaseAction: player.seek(Math.max(0, player.time - 5000))
                         Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true }
-                        Keys.onLeftPressed: (event) => { player.seek(Math.max(0, player.time - 5000)); event.accepted = true }
-                        Keys.onRightPressed: (event) => { player.seek(player.time + 5000); event.accepted = true }
+                        Keys.onLeftPressed: (event) => { win.seekBy(-5000); event.accepted = true }
+                        Keys.onRightPressed: (event) => { win.seekBy(5000); event.accepted = true }
                         onPressed: (mouse) => { focus = false; win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
                         onPositionChanged: (mouse) => { if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
+                        onCanceled: { win.seekPressed = false; win.seekDisplay = -1; idle.restart() }
                         onReleased: { player.seek(player.length * seekBar.dragProgress); win.seekDisplay = seekBar.dragProgress; seekRelease.restart(); win.seekPressed = false; idle.restart() }
                         ToolTip {
                             id: seekTooltip
@@ -582,11 +616,15 @@ ApplicationWindow {
                             Accessible.description: player.volume + "%"
                             Accessible.onIncreaseAction: player.volume = Math.min(100, player.volume + 5)
                             Accessible.onDecreaseAction: player.volume = Math.max(0, player.volume - 5)
-                            Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true }
-                            Keys.onLeftPressed: (event) => { player.volume = Math.max(0, player.volume - 5); win.notify("Volume " + player.volume + "%"); event.accepted = true }
-                            Keys.onRightPressed: (event) => { player.volume = Math.min(100, player.volume + 5); win.notify("Volume " + player.volume + "%"); event.accepted = true }
+                            Keys.onShortcutOverride: (event) => { if ([Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down].includes(event.key)) event.accepted = true }
+                            function changeVolume(delta) { player.volume = Math.max(0, Math.min(100, player.volume + delta)); win.notify("Volume " + player.volume + "%") }
+                            Keys.onLeftPressed: changeVolume(-5)
+                            Keys.onRightPressed: changeVolume(5)
+                            Keys.onDownPressed: changeVolume(-5)
+                            Keys.onUpPressed: changeVolume(5)
                             onPressed: (mouse) => { focus = false; win.volumePressed = true; setLevel(mouse.x) }
                             onPositionChanged: (mouse) => { if (pressed) setLevel(mouse.x) }
+                            onCanceled: { win.volumePressed = false; idle.restart() }
                             onReleased: { win.volumePressed = false; idle.restart() }
                             onWheel: win.wheelVolume(wheel.angleDelta.y)
                             function setLevel(x) { player.volume = Math.round(100 * Math.max(0, Math.min(1, x / width))); win.notify("Volume " + player.volume + "%") }
@@ -616,19 +654,37 @@ ApplicationWindow {
             z: 10
             x: edgeLeft ? 0 : edgeRight ? win.width - 6 : 6
             y: edgeTop ? 0 : edgeBottom ? win.height - 6 : 6
-            width: corner || vertical ? 6 : horizontal ? 6 : win.width - 12
-            height: corner || horizontal ? 6 : vertical ? 6 : win.height - 12
+            width: corner || horizontal ? 6 : win.width - 12
+            height: corner || vertical ? 6 : win.height - 12
             MouseArea {
                 anchors.fill: parent
                 cursorShape: parent.corner ? ((parent.edgeTop && parent.edgeLeft) || (parent.edgeBottom && parent.edgeRight) ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor) : parent.horizontal ? Qt.SizeHorCursor : Qt.SizeVerCursor
-                onPressed: {
+                property bool manualResize: false
+                property point pressGlobal
+                property rect pressGeometry
+                onPressed: (mouse) => {
+                    pressGlobal = mapToGlobal(mouse.x, mouse.y)
+                    pressGeometry = Qt.rect(win.x, win.y, win.width, win.height)
                     let edges = 0
                     if (parent.edgeLeft) edges |= Qt.LeftEdge
                     if (parent.edgeRight) edges |= Qt.RightEdge
                     if (parent.edgeTop) edges |= Qt.TopEdge
                     if (parent.edgeBottom) edges |= Qt.BottomEdge
-                    win.startSystemResize(edges)
+                    manualResize = !win.startSystemResize(edges)
                 }
+                onPositionChanged: (mouse) => {
+                    if (!pressed || !manualResize) return
+                    const global = mapToGlobal(mouse.x, mouse.y)
+                    const dx = global.x - pressGlobal.x, dy = global.y - pressGlobal.y
+                    const width = Math.max(win.minimumWidth, pressGeometry.width + (parent.edgeLeft ? -dx : parent.edgeRight ? dx : 0))
+                    const height = Math.max(win.minimumHeight, pressGeometry.height + (parent.edgeTop ? -dy : parent.edgeBottom ? dy : 0))
+                    win.width = width
+                    win.height = height
+                    win.x = parent.edgeLeft ? pressGeometry.x + pressGeometry.width - width : pressGeometry.x
+                    win.y = parent.edgeTop ? pressGeometry.y + pressGeometry.height - height : pressGeometry.y
+                }
+                onReleased: manualResize = false
+                onCanceled: manualResize = false
             }
         }
     }
