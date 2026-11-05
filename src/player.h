@@ -14,6 +14,7 @@ class Player final : public QObject {
     Q_PROPERTY(qint64 length READ length NOTIFY positionChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY volumeChanged)
+    Q_PROPERTY(bool hasVideo READ hasVideo NOTIFY hasVideoChanged)
     Q_PROPERTY(bool playing READ playing NOTIFY playingChanged)
     Q_PROPERTY(QString title READ title NOTIFY titleChanged)
     Q_PROPERTY(QUrl currentUrl READ currentUrl NOTIFY currentUrlChanged)
@@ -27,6 +28,7 @@ public:
     int volume() const { return m_volume; }
     bool muted() const { return m_muted; }
     bool playing() const;
+    bool hasVideo() const { return m_hasVideo; }
     QString title() const { return m_title; }
     QUrl currentUrl() const { return m_currentUrl; }
     Q_INVOKABLE void open(const QUrl &url);
@@ -40,6 +42,7 @@ signals:
     void positionChanged();
     void volumeChanged();
     void playingChanged();
+    void hasVideoChanged();
     void titleChanged();
     void currentUrlChanged();
     void playbackError(const QString &message);
@@ -53,6 +56,8 @@ private:
     static unsigned setup(void **, char *, unsigned *, unsigned *, unsigned *, unsigned *);
     static void cleanup(void *);
     static void event(const libvlc_event_t *, void *);
+    void resetMedia();
+    void failMedia(const QString &name);
     void post(const std::function<void()> &fn);
     libvlc_instance_t *m_instance{};
     libvlc_media_player_t *m_player{};
@@ -60,6 +65,7 @@ private:
     std::atomic<bool> m_framePending{false};
     int m_volume{80};
     bool m_muted{false};
+    bool m_hasVideo{false};
     QString m_title{QStringLiteral("Konus")};
     QString m_pendingTitle;
     QUrl m_currentUrl;

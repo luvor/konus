@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
 jobs:
   build:
+    env:
+      QT_VERSION: '6.8.3'
     strategy:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
@@ -13,8 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
-          modules: 'qtmultimedia qtsvg'
+          version: ${{ env.QT_VERSION }}
+          modules: 'qtmultimedia'
       - name: Install libVLC (macOS)
         if: runner.os == 'macOS'
         run: brew install --cask vlc
@@ -41,8 +43,23 @@ jobs:
           cp -R /Applications/VLC.app/Contents/MacOS/plugins/. build/konus.app/Contents/PlugIns/vlc/
           ditto LICENSE build/konus.app/Contents/Resources/LICENSE
           ditto NOTICE build/konus.app/Contents/Resources/NOTICE
+          ditto LICENSES build/konus.app/Contents/Resources/LICENSES
           ditto assets/icons/LICENSE-hugeicons.txt build/konus.app/Contents/Resources/LICENSE-hugeicons.txt
           ditto assets/fonts/OFL.txt build/konus.app/Contents/Resources/OFL.txt
+          qt_notices=build/konus.app/Contents/Resources/upstream-notices/qt
+          vlc_notices=build/konus.app/Contents/Resources/upstream-notices/vlc
+          qt_version="$QT_VERSION"
+          qt_series=${qt_version%.*}
+          mkdir -p "$qt_notices" "$vlc_notices"
+          if [ -d "$QT_ROOT_DIR/Licenses" ]; then ditto "$QT_ROOT_DIR/Licenses" "$qt_notices/Licenses"; fi
+          while IFS= read -r -d '' file; do
+            rel=${file#"$QT_ROOT_DIR/"}; mkdir -p "$qt_notices/$(dirname "$rel")"; cp "$file" "$qt_notices/$rel"
+          done < <(find "$QT_ROOT_DIR" -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname '*third*party*' -o -iname 'copyright' \) -print0)
+          while IFS= read -r -d '' file; do
+            rel=${file#"/Applications/VLC.app/Contents/"}; mkdir -p "$vlc_notices/$(dirname "$rel")"; cp "$file" "$vlc_notices/$rel"
+          done < <(find /Applications/VLC.app/Contents -type f \( -iname 'COPYING*' -o -iname 'copyright' \) -print0)
+          vlc_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/VLC.app/Contents/Info.plist)
+          printf 'Qt %s\nCorresponding source: https://download.qt.io/archive/qt/%s/%s/single/qt-everywhere-src-%s.tar.xz\n\nlibVLC and VLC plugins %s\nCorresponding source: https://download.videolan.org/pub/videolan/vlc/%s/\n' "$qt_version" "$qt_series" "$qt_version" "$qt_version" "$vlc_version" "$vlc_version" > build/konus.app/Contents/Resources/THIRD-PARTY-SOURCES.txt
           codesign --force --deep -s - build/konus.app
           cd build && zip -r ../konus-macos.zip konus.app
       - name: Package Windows
@@ -55,6 +72,25 @@ jobs:
           Copy-Item "$vlc/libvlc.dll", "$vlc/libvlccore.dll" $stage
           Copy-Item "$vlc/plugins" "$stage/plugins" -Recurse
           Copy-Item LICENSE, NOTICE, assets/icons/LICENSE-hugeicons.txt, assets/fonts/OFL.txt $stage
+          Copy-Item LICENSES "$stage/LICENSES" -Recurse
+          $qtNotices = "$stage/upstream-notices/qt"
+          $vlcNotices = "$stage/upstream-notices/vlc"
+          New-Item -ItemType Directory -Force $qtNotices, $vlcNotices | Out-Null
+          Get-ChildItem $env:QT_ROOT_DIR -Recurse -File | Where-Object { $_.Name -match '^(LICENSE|COPYING)|third.*party|^copyright$' } | ForEach-Object {
+            $relative = $_.FullName.Substring($env:QT_ROOT_DIR.Length).TrimStart('\', '/')
+            $target = Join-Path $qtNotices $relative
+            New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+            Copy-Item $_.FullName $target
+          }
+          Get-ChildItem $vlc -Recurse -File | Where-Object { $_.Name -match '^(COPYING|LICENSE)|^copyright$' } | ForEach-Object {
+            $relative = $_.FullName.Substring($vlc.Length).TrimStart('\', '/')
+            $target = Join-Path $vlcNotices $relative
+            New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+            Copy-Item $_.FullName $target
+          }
+          $qtVersion = $env:QT_VERSION
+          $qtSeries = $qtVersion.Substring(0, $qtVersion.LastIndexOf('.'))
+          "Qt $qtVersion`nCorresponding source: https://download.qt.io/archive/qt/$qtSeries/$qtVersion/single/qt-everywhere-src-$qtVersion.tar.xz`n`nlibVLC and VLC plugins 3.0.23`nCorresponding source: https://download.videolan.org/pub/videolan/vlc/3.0.23/" | Set-Content "$stage/THIRD-PARTY-SOURCES.txt"
           Compress-Archive -Path "$stage/*" -DestinationPath konus-windows.zip
       - name: Package Linux
         if: runner.os == 'Linux'
@@ -63,7 +99,24 @@ jobs:
           cp build/konus AppDir/usr/bin/konus
           cp -R /usr/lib/x86_64-linux-gnu/vlc/plugins AppDir/usr/lib/vlc/
           cp /usr/share/doc/libvlc5/copyright AppDir/usr/lib/vlc/COPYRIGHT 2>/dev/null || true
-          cp LICENSE NOTICE assets/icons/LICENSE-hugeicons.txt assets/fonts/OFL.txt AppDir/usr/share/
+          mkdir -p AppDir/usr/share/konus/LICENSES
+          cp -R LICENSES/. AppDir/usr/share/konus/LICENSES/
+          cp LICENSE NOTICE assets/icons/LICENSE-hugeicons.txt assets/fonts/OFL.txt AppDir/usr/share/konus/
+          qt_notices=AppDir/usr/share/konus/upstream-notices/qt
+          vlc_notices=AppDir/usr/share/konus/upstream-notices/vlc
+          mkdir -p "$qt_notices" "$vlc_notices"
+          if [ -d "$QT_ROOT_DIR/Licenses" ]; then cp -R "$QT_ROOT_DIR/Licenses" "$qt_notices/Licenses"; fi
+          while IFS= read -r -d '' file; do
+            rel=${file#"$QT_ROOT_DIR/"}; mkdir -p "$qt_notices/$(dirname "$rel")"; cp "$file" "$qt_notices/$rel"
+          done < <(find "$QT_ROOT_DIR" -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname '*third*party*' -o -iname 'copyright' \) -print0)
+          for doc in /usr/share/doc/libvlc5/copyright /usr/share/doc/vlc-plugin-base/copyright; do
+            if [ -f "$doc" ]; then cp "$doc" "$vlc_notices/$(basename "$(dirname "$doc")").copyright"; fi
+          done
+          vlc_version=$(dpkg-query -W -f='${Version}' libvlc5)
+          ubuntu_codename=$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")
+          qt_version="$QT_VERSION"
+          qt_series=${qt_version%.*}
+          printf 'Qt %s\nCorresponding source: https://download.qt.io/archive/qt/%s/%s/single/qt-everywhere-src-%s.tar.xz\n\nlibVLC and VLC plugins %s (Ubuntu %s source package vlc)\nCorresponding source: https://launchpad.net/ubuntu/%s/+source/vlc/%s\n' "$qt_version" "$qt_series" "$qt_version" "$qt_version" "$vlc_version" "$ubuntu_codename" "$ubuntu_codename" "$vlc_version" > AppDir/usr/share/konus/THIRD-PARTY-SOURCES.txt
           printf '[Desktop Entry]\nType=Application\nName=Konus\nExec=konus\nIcon=konus\nCategories=AudioVideo;Player;\n' > AppDir/usr/share/applications/konus.desktop
           cp assets/icons/cone.svg AppDir/usr/share/icons/hicolor/256x256/apps/konus.svg
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage

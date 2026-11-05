@@ -38,7 +38,7 @@ Player::Player(QObject *parent) : QObject(parent) {
         auto *manager = libvlc_media_player_event_manager(m_player);
         for (auto type : {libvlc_MediaPlayerPlaying, libvlc_MediaPlayerPaused, libvlc_MediaPlayerStopped,
                           libvlc_MediaPlayerTimeChanged, libvlc_MediaPlayerLengthChanged,
-                          libvlc_MediaPlayerEncounteredError, libvlc_MediaPlayerEndReached})
+                          libvlc_MediaPlayerEncounteredError, libvlc_MediaPlayerEndReached, libvlc_MediaPlayerVout})
             libvlc_event_attach(manager, type, event, this);
         libvlc_audio_set_volume(m_player, m_volume);
         }
@@ -48,7 +48,14 @@ Player::~Player() { if (m_player) { libvlc_media_player_stop(m_player); libvlc_m
 void Player::post(const std::function<void()> &fn) { QMetaObject::invokeMethod(this, fn, Qt::QueuedConnection); }
 void Player::event(const libvlc_event_t *e, void *data) {
     auto *self = static_cast<Player *>(data);
-    self->post([self, type=e->type] {
+    const auto generation = self->m_generation.load();
+    const int vout = e->type == libvlc_MediaPlayerVout ? e->u.media_player_vout.new_count : 0;
+    self->post([self, type=e->type, generation, vout] {
+        if (generation != self->m_generation.load()) return;
+        if (type == libvlc_MediaPlayerVout && self->m_hasVideo != (vout > 0)) {
+            self->m_hasVideo = vout > 0;
+            emit self->hasVideoChanged();
+        }
         if (type == libvlc_MediaPlayerPlaying) {
             if (self->m_pendingUrl.isValid()) {
                 self->m_currentUrl = self->m_pendingUrl; emit self->currentUrlChanged();
@@ -58,9 +65,8 @@ void Player::event(const libvlc_event_t *e, void *data) {
             self->m_pendingTitle.clear();
         } else if (type == libvlc_MediaPlayerEncounteredError) {
             const QString name = self->m_pendingUrl.isValid() ? self->m_pendingUrl.fileName() : self->m_currentUrl.fileName();
-            emit self->playbackError(QStringLiteral("Can't play %1").arg(name));
-            self->m_pendingUrl.clear();
-            self->m_pendingTitle.clear();
+            self->failMedia(name);
+            return;
         }
         if (type == libvlc_MediaPlayerPlaying || type == libvlc_MediaPlayerPaused || type == libvlc_MediaPlayerStopped || type == libvlc_MediaPlayerEndReached) emit self->playingChanged();
         emit self->positionChanged();
@@ -128,20 +134,38 @@ void Player::open(const QUrl &url) {
         return;
     }
     const QString name = url.isLocalFile() ? QFileInfo(url.toLocalFile()).fileName() : url.fileName();
-    ++m_generation;
-    m_framePending = false;
-    if (m_sink) m_sink->setVideoFrame(QVideoFrame());
+    resetMedia();
     m_pendingUrl = url;
     m_pendingTitle = name;
     libvlc_media_player_set_media(m_player, media); libvlc_media_release(media);
     if (libvlc_media_player_play(m_player) != 0) {
-        emit playbackError(QStringLiteral("Can't play %1").arg(name));
-        m_pendingUrl.clear();
-        m_pendingTitle.clear();
+        failMedia(name);
     }
 }
+void Player::resetMedia() {
+    // stop joins the old input before callbacks can acquire the next media's generation.
+    libvlc_media_player_stop(m_player);
+    ++m_generation;
+    libvlc_media_player_set_media(m_player, nullptr);
+    m_framePending = false;
+    if (m_sink) m_sink->setVideoFrame(QVideoFrame());
+    m_pendingUrl.clear();
+    m_pendingTitle.clear();
+    m_currentUrl.clear();
+    m_title = QStringLiteral("Konus");
+    m_hasVideo = false;
+    emit currentUrlChanged();
+    emit titleChanged();
+    emit hasVideoChanged();
+    emit playingChanged();
+    emit positionChanged();
+}
+void Player::failMedia(const QString &name) {
+    resetMedia();
+    emit playbackError(QStringLiteral("Can't play %1").arg(name));
+}
 void Player::togglePause() {
-    if (!m_player) return;
+    if (!m_player || (m_currentUrl.isEmpty() && m_pendingUrl.isEmpty())) return;
     const auto state = libvlc_media_player_get_state(m_player);
     if (state == libvlc_Ended || state == libvlc_Error) {
         libvlc_media_player_stop(m_player);

@@ -16,12 +16,19 @@ Inter by Rasmus Andersson is licensed under the SIL Open Font License 1.1.
 See assets/fonts/OFL.txt.
 
 Qt
-Qt is available under the GNU Lesser General Public License version 3 (LGPLv3)
-and other licenses. See https://www.qt.io/licensing/.
+Qt 6.8.3 is available under the GNU Lesser General Public License version 3
+(LGPL-3.0) and other licenses. The full LGPL-3.0 text is in LICENSES/LGPL-3.0.txt;
+the exact bundled version and corresponding-source location are in
+THIRD-PARTY-SOURCES.txt. Upstream licence and third-party notice files shipped
+with Qt are included in upstream-notices/qt when available.
 
 libVLC
-libVLC is part of VideoLAN's VLC project and is available under the GNU Lesser
-General Public License version 2.1 or later (LGPL-2.1+). See
-https://www.videolan.org/legal.html.
+libVLC and VLC plugins are part of VideoLAN's VLC project. libVLC is available
+under the GNU Lesser General Public License version 2.1 or later (LGPL-2.1+);
+plugins have mixed LGPL-2.1+ and GPL-2.0+ licensing. The full licence texts are
+in LICENSES/LGPL-2.1.txt and LICENSES/GPL-2.0.txt (GPL-3.0-or-later is in
+LICENSE). The exact bundled versions and corresponding-source locations are in
+THIRD-PARTY-SOURCES.txt. Upstream VLC notice files available at build time are
+included in upstream-notices/vlc.
 
 Konus is licensed under GPL-3.0-or-later; see LICENSE.

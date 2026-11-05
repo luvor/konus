@@ -36,6 +36,7 @@ public:
 };
 
 int main(int argc, char *argv[]) {
+    qputenv("QSG_DISTANCEFIELD_ANTIALIASING", "gray");
     QQuickStyle::setStyle("Basic");
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("Konus");
@@ -61,7 +62,8 @@ int main(int argc, char *argv[]) {
         const int width = dimensions[0].toInt(&widthOk), height = dimensions[1].toInt(&heightOk);
         if (widthOk && heightOk && width > 0 && height > 0) window->resize(width, height);
     }
-    if (argc > 1) player.open(QUrl::fromUserInput(QString::fromLocal8Bit(argv[1])));
+    const QStringList arguments = app.arguments();
+    if (arguments.size() > 1) player.open(QUrl::fromUserInput(arguments.at(1)));
     const QString grab = qEnvironmentVariable("KONUS_GRAB");
     if (!grab.isEmpty()) QTimer::singleShot(3000, window, [window, grab, &app] {
         QMetaObject::invokeMethod(window, "reveal");

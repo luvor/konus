@@ -48,12 +48,24 @@ cmake --build build --config Release
 
 ### Linux
 
-Install Qt 6 development modules and libVLC development packages (for Ubuntu: `qt6-base-dev qt6-declarative-dev qt6-multimedia-dev qt6-svg-dev libvlc-dev vlc-plugin-base`), then run:
+Install the build tools and libVLC packages on Ubuntu 24.04. The Qt packages in
+Ubuntu 24.04 provide Qt 6.4.2, below Konus's Qt 6.5 minimum, so install the same
+Qt 6.8.3 modules used by CI (Qt Svg ships in the base package) with `aqtinstall`:
 
 ```sh
+sudo apt-get update
+sudo apt-get install -y build-essential cmake pkg-config python3-venv libvlc-dev libvlc5 vlc-plugin-base libgl1 libxkbcommon-x11-0 libxcb-cursor0
+python3 -m venv .venv-aqt
+.venv-aqt/bin/python -m pip install aqtinstall
+.venv-aqt/bin/aqt install-qt linux desktop 6.8.3 linux_gcc_64 --modules qtmultimedia --outputdir "$HOME/Qt"
+export CMAKE_PREFIX_PATH="$HOME/Qt/6.8.3/gcc_64"
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
+
+The build uses Qt's installed shared libraries and system libVLC plugins at
+runtime; keep `libvlc5`, `vlc-plugin-base`, `libxkbcommon-x11-0`, and
+`libxcb-cursor0` installed.
 
 ## Credits
 

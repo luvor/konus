@@ -7,6 +7,7 @@ Item {
     property int size: 18
     property real glyphWidth: size
     property real glyphHeight: size
+    property real glyphOffsetX: 0
     property color tint: "#8f8f8f"
     property color hoverTint: Qt.lighter(tint, 1.3)
     property bool interactive: false
@@ -40,6 +41,7 @@ Item {
     Rectangle { anchors.fill: parent; radius: 6; color: "transparent"; border.width: icon.activeFocus ? 1 : 0; border.color: Theme.accent }
     Image {
         anchors.centerIn: parent
+        anchors.horizontalCenterOffset: icon.glyphOffsetX
         width: icon.glyphWidth
         height: icon.glyphHeight
         source: "image://icons/" + icon.name + "/" + (icon.closeButton && hover.hovered ? "#ffffff" : (hover.hovered && icon.interactive ? icon.hoverTint : icon.tint)).toString().slice(1)

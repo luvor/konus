@@ -39,6 +39,10 @@ ApplicationWindow {
         return normalize(a) === normalize(b)
     }
     function reveal() { showChrome = true; idle.restart() }
+    readonly property int currentFileIndex: {
+        for (let i = 0; i < files.count; i++) if (sameUrl(files.get(i, "fileUrl"), player.currentUrl)) return i
+        return -1
+    }
     function stepFile(delta) {
         for (let i = 0; i < files.count; i++) {
             if (sameUrl(files.get(i, "fileUrl"), player.currentUrl)) {
@@ -49,7 +53,7 @@ ApplicationWindow {
         }
     }
     function syncCurrentRow() {
-        for (let i = 0; i < files.count; i++) if (sameUrl(files.get(i, "fileUrl"), player.currentUrl)) { fileList.currentIndex = i; return }
+        fileList.currentIndex = currentFileIndex
     }
     function notify(message, duration) {
         osd.text = message
@@ -71,7 +75,7 @@ ApplicationWindow {
         id: idle
         interval: 2500
         onTriggered: {
-            if (!player.playing) return
+            if (!player.playing || !player.hasVideo) return
             if (win.chromeHovered || win.seekPressed || win.volumePressed) restart()
             else win.showChrome = false
         }
@@ -80,6 +84,7 @@ ApplicationWindow {
     Connections {
         target: player
         function onPlayingChanged() { win.reveal() }
+        function onHasVideoChanged() { win.reveal() }
         function onPlaybackError(message) { win.notify(message, 5000) }
         function onAudioTrackChanged(name) { win.notify(name) }
         function onSubtitleChanged(name) { win.notify(name) }
@@ -134,7 +139,7 @@ ApplicationWindow {
             color: Theme.window
             visible: win.showChrome
             HoverHandler { id: titleHover }
-            Image { x: 16; y: 9; width: 18; height: 22; source: "image://icons/cone/d37918"; sourceSize: Qt.size(36, 44) }
+            Image { x: 15; y: 8; width: 20; height: 25; source: "image://icons/cone/d37918"; sourceSize: Qt.size(40, 50) }
             Icon { x: 57; y: 18; name: "MoreHorizontal"; glyphWidth: 16; glyphHeight: 4; tooltip: "Not available yet"; accessibleName: "More options" }
             Icon {
                 id: sidebarIcon
@@ -204,9 +209,11 @@ ApplicationWindow {
                         delegate: Item {
                             required property string modelData
                             required property int index
-                            width: 52
+                            width: 50
                             height: 46
                             Icon {
+                                width: 50; height: 46
+                                glyphOffsetX: 1
                                 anchors.centerIn: parent
                                 anchors.verticalCenterOffset: index === 4 ? 1 : 0
                                 name: modelData
@@ -216,7 +223,8 @@ ApplicationWindow {
                                 accessibleName: ["Home", "Videos", "Music", "Network", "Playlists", "Recent", "Add"][index]
                                 tooltip: accessibleName
                                 onActivated: if (index === 6) picker.open(); else { win.section = ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index]; win.libraryOpen = true }
-                                tint: (win.section === ["Home", "Videos", "Music", "Network", "Playlists"][index] || railMouse.containsMouse) ? Theme.accent : "#8f8f8f"
+                                tint: win.section === ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index] ? Theme.accent : railMouse.containsMouse ? "#b0b0b0" : index === 6 ? "#888888" : "#8f8f8f"
+                                hoverTint: win.section === ["Home", "Videos", "Music", "Network", "Playlists", "Recent"][index] ? Theme.accent : "#b0b0b0"
                                 MouseArea {
                                     id: railMouse
                                     anchors.fill: parent
@@ -289,15 +297,24 @@ ApplicationWindow {
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        Layout.topMargin: 19
-                        RowLayout {
+                        Layout.topMargin: 15
+                        Rectangle { anchors.fill: parent; radius: 4; color: addMouse.containsMouse ? "#0dffffff" : "transparent"; border.width: addMouse.activeFocus ? 1 : 0; border.color: Theme.accent }
+                        Icon { x: 8; anchors.verticalCenter: parent.verticalCenter; name: "Add01"; size: 16; tint: "#666666" }
+                        Text { x: 42; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: 1; text: "Add…"; color: Theme.muted; font.pixelSize: 14 }
+                        MouseArea {
+                            id: addMouse
                             anchors.fill: parent
-                            anchors.leftMargin: 7
-                            spacing: 18
-                            Icon { name: "Add01"; size: 18; interactive: false; tint: Theme.muted }
-                            Text { Layout.fillWidth: true; text: "Add…"; color: Theme.muted; font.pixelSize: 14 }
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: "Add files"
+                            Accessible.onPressAction: picker.open()
+                            Keys.onSpacePressed: picker.open()
+                            Keys.onReturnPressed: picker.open()
+                            Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Space) event.accepted = true }
+                            onClicked: picker.open()
                         }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: picker.open() }
                     }
                     Item {
                         Layout.fillWidth: true
@@ -305,6 +322,7 @@ ApplicationWindow {
                         ListView {
                             id: fileList
                             anchors.fill: parent
+                            anchors.topMargin: 1
                             clip: true
                             visible: win.section === "Videos" || win.section === "Music"
                             model: files
@@ -348,7 +366,7 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: { fileList.currentIndex = index; fileList.forceActiveFocus(Qt.MouseFocusReason); fileList.keyboardFocus = false; player.open(fileUrl) }
+                                    onClicked: { fileList.currentIndex = index; fileList.focus = false; fileList.keyboardFocus = false; player.open(fileUrl) }
                                 }
                             }
                             Keys.onUpPressed: { keyboardFocus = true; decrementCurrentIndex() }
@@ -380,7 +398,25 @@ ApplicationWindow {
                     color: Theme.video
                     Rectangle { anchors.fill: parent; anchors.margins: 2; color: "transparent"; border.width: dropArea.containsDrag ? 2 : 0; border.color: Theme.accent }
                     VideoOutput { id: output; anchors.fill: parent; fillMode: VideoOutput.PreserveAspectFit }
-                    Text { anchors.centerIn: parent; visible: !player.title || player.title === "Konus"; text: "Drop a video here or click Add"; color: "#a0a0a0"; font.pixelSize: 13 }
+                    Text { anchors.centerIn: parent; width: parent.width - 40; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; visible: !player.hasVideo; text: player.currentUrl.toString() ? player.title : "Drop a video here or click Add"; color: "#a0a0a0"; font.pixelSize: 13 }
+                    Repeater {
+                        model: 4
+                        delegate: Canvas {
+                            required property int index
+                            width: 10; height: 10; z: 2
+                            visible: !win.showChrome || index < 2
+                            x: index < 2 ? parent.width - width : 0
+                            y: index === 0 || index === 3 ? 0 : parent.height - height
+                            rotation: index * 90
+                            onPaint: {
+                                const c = getContext("2d")
+                                c.clearRect(0, 0, width, height)
+                                c.fillStyle = Theme.window
+                                c.beginPath(); c.moveTo(0, 0); c.lineTo(10, 0); c.lineTo(10, 10)
+                                c.arc(0, 10, 10, 0, -Math.PI / 2, true); c.closePath(); c.fill()
+                            }
+                        }
+                    }
                     Rectangle {
                         id: osd
                         property string text: ""
@@ -417,7 +453,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 Item {
                     x: 0; y: 0; width: 154; height: parent.height
-                    Icon { x: 20.5; y: 12; name: "Previous"; glyphWidth: 11; glyphHeight: 12; interactive: true; tint: "#8f8f8f"; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
+                    Icon { x: 20.5; y: 12; name: "Previous"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex > 0; tint: enabled ? "#8f8f8f" : Theme.muted; accessibleName: "Previous file"; tooltip: "Previous"; onActivated: win.stepFile(-1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(-1) } }
                     Rectangle {
                         x: 58; y: 14; width: 54; height: 28
                         border.width: playMouse.activeFocus ? 2 : 0
@@ -445,7 +481,7 @@ ApplicationWindow {
                             onClicked: activate()
                         }
                     }
-                    Icon { x: 120.5; y: 12; name: "Next"; glyphWidth: 11; glyphHeight: 12; interactive: true; tint: "#8f8f8f"; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
+                    Icon { x: 120.5; y: 12; name: "Next"; glyphWidth: 11; glyphHeight: 12; interactive: true; enabled: win.currentFileIndex >= 0 && win.currentFileIndex < files.count - 1; tint: enabled ? "#8f8f8f" : Theme.muted; accessibleName: "Next file"; tooltip: "Next"; onActivated: win.stepFile(1); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.stepFile(1) } }
                 }
                 Text { x: 177; y: 19; text: fmt(player.time); color: Theme.text; font.pixelSize: 15; font.letterSpacing: -0.3 }
                 Item {
@@ -454,17 +490,15 @@ ApplicationWindow {
                     width: Math.max(120, parent.width - 676); height: 30
                     readonly property real progress: player.length > 0 ? Math.max(0, Math.min(1, player.time / player.length)) : 0
                     property real dragProgress: progress
-                    Accessible.role: Accessible.Slider
-                    Accessible.name: "Playback position"
-                    Accessible.description: win.fmt(player.time) + " of " + win.fmt(player.length)
+                    readonly property real displayedProgress: seekBarMouse.pressed ? dragProgress : win.seekDisplay >= 0 ? win.seekDisplay : progress
+                    readonly property real thumbX: 5 + (width - 18) * displayedProgress
                     Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: 3
-                        color: "#0b0b0b"
-                        radius: 4
-                        Rectangle { width: parent.width * (seekBarMouse.pressed ? seekBar.dragProgress : win.seekDisplay >= 0 ? win.seekDisplay : seekBar.progress); height: parent.height; color: Theme.seekFill; radius: 4 }
+                        x: 3; y: 1; width: parent.width - 6; height: 28
+                        color: "#090909"; radius: 4
+                        Rectangle { x: 2; y: 2; width: seekBar.thumbX - 5 + 4; height: 24; color: Theme.seekFill; radius: 4 }
                     }
-                    Rectangle { x: 3 + (parent.width - 14) * (seekBarMouse.pressed ? seekBar.dragProgress : win.seekDisplay >= 0 ? win.seekDisplay : seekBar.progress); y: 3; width: 8; height: 24; color: Theme.accent; radius: 3 }
+                    Rectangle { x: seekBar.thumbX; y: 3; width: 8; height: 24; color: seekBarMouse.containsMouse || seekBarMouse.pressed ? Qt.lighter(Theme.accent, seekBarMouse.pressed ? 1.25 : 1.12) : Theme.accent; radius: 4 }
+                    Rectangle { anchors.fill: parent; radius: 4; color: "transparent"; border.color: Theme.accent; border.width: seekBarMouse.activeFocus ? 1 : 0 }
                     MouseArea {
                         id: seekBarMouse
                         anchors.fill: parent
@@ -472,16 +506,27 @@ ApplicationWindow {
                         cursorShape: Qt.PointingHandCursor
                         hoverEnabled: true
                         activeFocusOnTab: true
+                        Accessible.role: Accessible.Slider
+                        Accessible.name: "Playback position"
+                        readonly property real value: player.time
+                        readonly property real minimumValue: 0
+                        readonly property real maximumValue: player.length
+                        readonly property real stepSize: 5000
+                        Accessible.description: win.fmt(player.time) + " of " + win.fmt(player.length)
                         Accessible.onIncreaseAction: player.seek(Math.min(player.length, player.time + 5000))
                         Accessible.onDecreaseAction: player.seek(Math.max(0, player.time - 5000))
                         Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true }
                         Keys.onLeftPressed: (event) => { player.seek(Math.max(0, player.time - 5000)); event.accepted = true }
                         Keys.onRightPressed: (event) => { player.seek(player.time + 5000); event.accepted = true }
-                        onPressed: { forceActiveFocus(); win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 7) / (width - 14))) }
-                        onPositionChanged: if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 7) / (width - 14)))
+                        onPressed: (mouse) => { focus = false; win.seekPressed = true; seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
+                        onPositionChanged: (mouse) => { if (pressed) seekBar.dragProgress = Math.max(0, Math.min(1, (mouse.x - 9) / (width - 18))) }
                         onReleased: { player.seek(player.length * seekBar.dragProgress); win.seekDisplay = seekBar.dragProgress; seekRelease.restart(); win.seekPressed = false; idle.restart() }
-                        ToolTip.visible: containsMouse && player.length > 0
-                        ToolTip.text: win.fmt(player.length * Math.max(0, Math.min(1, (mouseX - 7) / (width - 14))))
+                        ToolTip {
+                            id: seekTooltip
+                            visible: seekBarMouse.containsMouse && player.length > 0
+                            x: Math.max(0, Math.min(seekBarMouse.width - implicitWidth, seekBarMouse.mouseX - implicitWidth / 2))
+                            text: win.fmt(player.length * Math.max(0, Math.min(1, (seekBarMouse.mouseX - 9) / (seekBarMouse.width - 18))))
+                        }
                     }
                     Timer { id: seekRelease; interval: 300; onTriggered: win.seekDisplay = -1 }
                 }
@@ -499,18 +544,27 @@ ApplicationWindow {
                     Item {
                         id: volumeBar
                         x: 36; y: 14; width: 89; height: 28
-                        Accessible.role: Accessible.Slider
-                        Accessible.name: "Volume"
-                        Accessible.description: player.volume + "%"
+                        Rectangle { anchors.fill: parent; radius: 4; color: "transparent"; border.color: Theme.accent; border.width: volumeMouse.activeFocus ? 1 : 0 }
                         Canvas {
                             anchors.fill: parent
                             property real level: player.volume / 100
+                            property bool highlighted: volumeMouse.containsMouse || volumeMouse.pressed
                             onLevelChanged: requestPaint()
+                            onHighlightedChanged: requestPaint()
                             onPaint: {
-                                let c = getContext("2d"), w = width, h = height, x = w * level, edge = h * 0.4, half = edge / 2 + (h / 2 - edge / 2) * level
-                                c.clearRect(0, 0, w, h); c.lineJoin = "round"; c.fillStyle = "#0b0b0b"; c.lineWidth = 1
+                                const c = getContext("2d"), w = width, h = height, x = 2 + (w - 4) * level, edge = h * 0.4
+                                const top = p => (h - edge) / 2 * (1 - p / w)
+                                c.clearRect(0, 0, w, h)
+                                c.fillStyle = "#090909"
                                 c.beginPath(); c.moveTo(0, (h-edge)/2); c.lineTo(0, (h+edge)/2); c.lineTo(w, h); c.lineTo(w, 0); c.closePath(); c.fill()
-                                c.fillStyle = "#7aa613"; c.beginPath(); c.moveTo(0, (h-edge)/2); c.lineTo(0, (h+edge)/2); c.lineTo(x, h/2+half); c.lineTo(x, h/2-half); c.closePath(); c.fill()
+                                if (level <= 0) return
+                                const gradient = c.createLinearGradient(2, 0, x, 0)
+                                gradient.addColorStop(0, highlighted ? "#8cba24" : "#79a613")
+                                gradient.addColorStop(1, highlighted ? "#99a625" : "#869313")
+                                c.fillStyle = gradient
+                                c.beginPath(); c.moveTo(4, top(4) + 2); c.lineTo(x, top(x) + 2); c.lineTo(x, h - top(x) - 2); c.lineTo(4, h - top(4) - 2)
+                                c.quadraticCurveTo(2, h - top(2) - 2, 2, h - top(2) - 4)
+                                c.lineTo(2, top(2) + 4); c.quadraticCurveTo(2, top(2) + 2, 4, top(4) + 2); c.closePath(); c.fill()
                             }
                         }
                         MouseArea {
@@ -518,16 +572,24 @@ ApplicationWindow {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             activeFocusOnTab: true
+                            hoverEnabled: true
+                            Accessible.role: Accessible.Slider
+                            Accessible.name: "Volume"
+                            readonly property real value: player.volume
+                            readonly property real minimumValue: 0
+                            readonly property real maximumValue: 100
+                            readonly property real stepSize: 5
+                            Accessible.description: player.volume + "%"
                             Accessible.onIncreaseAction: player.volume = Math.min(100, player.volume + 5)
                             Accessible.onDecreaseAction: player.volume = Math.max(0, player.volume - 5)
                             Keys.onShortcutOverride: (event) => { if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) event.accepted = true }
                             Keys.onLeftPressed: (event) => { player.volume = Math.max(0, player.volume - 5); win.notify("Volume " + player.volume + "%"); event.accepted = true }
                             Keys.onRightPressed: (event) => { player.volume = Math.min(100, player.volume + 5); win.notify("Volume " + player.volume + "%"); event.accepted = true }
-                            onPressed: { win.volumePressed = true; setLevel(mouse.x) }
-                            onPositionChanged: if (pressed) setLevel(mouse.x)
+                            onPressed: (mouse) => { focus = false; win.volumePressed = true; setLevel(mouse.x) }
+                            onPositionChanged: (mouse) => { if (pressed) setLevel(mouse.x) }
                             onReleased: { win.volumePressed = false; idle.restart() }
                             onWheel: win.wheelVolume(wheel.angleDelta.y)
-                            function setLevel(x) { player.volume = Math.round(100 * Math.max(0, Math.min(1, x / width))) }
+                            function setLevel(x) { player.volume = Math.round(100 * Math.max(0, Math.min(1, x / width))); win.notify("Volume " + player.volume + "%") }
                         }
                     }
                     Icon { x: 143; y: 12; name: "AudioWave01"; glyphWidth: 18; glyphHeight: 20; tint: "#727272"; interactive: true; accessibleName: "Audio track"; tooltip: "Audio track"; onActivated: player.cycleAudioTrack(); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: player.cycleAudioTrack() } }
